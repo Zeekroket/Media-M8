@@ -41,6 +41,36 @@ internal static class ThemeManager
     public static AppTheme CurrentTheme { get; private set; } =
         LoadSavedTheme();
 
+    public static Color WindowBackColor =>
+        CurrentTheme == AppTheme.Dark
+            ? DarkWindow
+            : LightWindow;
+
+    public static Color InputBackColor =>
+        CurrentTheme == AppTheme.Dark
+            ? DarkInput
+            : LightInput;
+
+    public static Color TextColor =>
+        CurrentTheme == AppTheme.Dark
+            ? DarkText
+            : LightText;
+
+    public static Color SelectionBackColor =>
+        CurrentTheme == AppTheme.Dark
+            ? Color.FromArgb(62, 62, 66)
+            : SystemColors.Highlight;
+
+    public static Color SelectionTextColor =>
+        CurrentTheme == AppTheme.Dark
+            ? DarkText
+            : SystemColors.HighlightText;
+
+    public static Color BorderColor =>
+        CurrentTheme == AppTheme.Dark
+            ? DarkBorder
+            : SystemColors.ControlDark;
+
     public static void SetTheme(AppTheme theme)
     {
         if (CurrentTheme == theme)
