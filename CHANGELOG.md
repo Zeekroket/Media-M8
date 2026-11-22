@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Queue window with live item states, remove-pending, clear-finished and Pause/Resume Queue controls.
 - Reassuring first-run setup wording with a Learn more link to dependency and verification information.
 - Expanded About Media M8 screen with app icon, project links, author/copyright, MIT licence and third-party acknowledgements.
-- Persistent Light/Dark appearance setting covering the main window, menus, queue, progress/status area and Media M8-owned dialogs.
+- Persistent Match System/Light/Dark appearance setting covering the main window, menus, queue, progress/status area and Media M8-owned dialogs.
 
 ### Changed
 
