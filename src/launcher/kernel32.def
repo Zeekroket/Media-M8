@@ -1,6 +1,0 @@
-LIBRARY KERNEL32.dll
-EXPORTS
-    GetModuleFileNameW
-    CreateProcessW
-    CloseHandle
-    ExitProcess
