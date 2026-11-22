@@ -5,10 +5,8 @@ out/
 release/
 *.zip
 
-# Downloaded third-party tools
-tools/*.exe
-tools/*.dll
-tools/*.zip
+# Downloaded runtime dependencies
+tools/
 
 # Signing material and private keys
 *.pfx
@@ -16,10 +14,15 @@ tools/*.zip
 *.key
 *.pem
 
-# Temporary files
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+*.log
 *.tmp
 *.temp
-*.log
 *.bak
 *~
 
@@ -27,6 +30,6 @@ tools/*.zip
 Thumbs.db
 Desktop.ini
 
-# IDE / editor
-.vscode/
+# IDEs
 .idea/
+.vs/

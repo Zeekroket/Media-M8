@@ -1,41 +1,32 @@
-# Contributing to Media M8
+# Contributing
 
-Thanks for your interest in Media M8.
+Contributions to Media M8 are welcome.
 
-## Language
+## Ground rules
 
-Repository content, issues, pull requests, code comments and documentation should be written in English.
+- Keep changes focused and limited to one clear purpose.
+- Use English for code comments, documentation, issues and pull requests.
+- Do not include unrelated refactoring in a bug fix or small feature.
+- Do not commit generated binaries or downloaded third-party tools unless the change specifically requires them.
+- Do not commit credentials, signing material or other secrets.
 
-## Before contributing
+## Development changes
 
-- Keep changes focused on one clear purpose.
-- Avoid unrelated refactoring in a small fix.
-- Follow the project's versioning rules in [VERSIONING.md](VERSIONING.md).
-- Update [CHANGELOG.md](CHANGELOG.md) when a user-visible change is introduced.
-- Do not commit third-party binaries unless the change explicitly requires it and licensing has been reviewed.
+For non-trivial changes, open an issue first so the scope can be agreed before implementation.
 
-## Security and signing material
+When submitting a pull request:
 
-Never commit:
+- Describe what changed and why.
+- Explain how the change was tested.
+- Update documentation when behavior changes.
+- Add an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) when the change is user-visible.
 
-- PFX or P12 files.
-- Private keys.
-- Certificate passwords.
-- Signing passwords or tokens.
-- Secrets or API credentials.
-- Personal access tokens.
+Version numbers are assigned by the maintainer as part of the release process.
 
-Public certificates may be shared when needed for verification, but private signing material must remain private.
+## Third-party code
 
-## Pull requests
+Media M8 relies on external projects such as yt-dlp, FFmpeg and Deno. Do not copy third-party source code into this repository without first confirming the applicable license and attribution requirements.
 
-A pull request should explain:
+## Security issues
 
-- What changed.
-- Why it changed.
-- How it was tested.
-- Whether the change is a revision, feature update or major-version change.
-
-## External projects
-
-Media M8 depends on separate third-party projects. Do not copy code from yt-dlp, FFmpeg, Deno or another project into Media M8 without first confirming that the relevant license permits it and that the required notices are included.
+Do not disclose security vulnerabilities in a public issue. See [SECURITY.md](SECURITY.md).
