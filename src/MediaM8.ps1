@@ -26,7 +26,8 @@ namespace MediaM8
 $script:AppName = 'Media M8'
 $script:AppVersion = '0.1.0'
 $script:downloadJob = $null
-$script:runtimeInstallJob = $null
+$script:runtimeInstallProcess = $null
+$script:installerLogReadOffset = 0
 $script:lastDownloadFolder = $null
 $script:openFolderWhenDone = $false
 
@@ -264,42 +265,37 @@ function Set-UiBusy {
 $installTimer = New-Object System.Windows.Forms.Timer
 $installTimer.Interval = 250
 $installTimer.Add_Tick({
-    if (-not $script:runtimeInstallJob) { return }
+    if (-not $script:runtimeInstallProcess) { return }
 
-    Receive-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue | ForEach-Object {
-        Add-LogLine ([string]$_)
+    try {
+        $allLines = @(Get-Content -LiteralPath $script:LogFile -ErrorAction SilentlyContinue)
+        if ($allLines.Count -gt $script:installerLogReadOffset) {
+            $newLines = $allLines[$script:installerLogReadOffset..($allLines.Count - 1)]
+            foreach ($line in $newLines) {
+                if ($line -match 'INSTALLER:\s+(.*)$') {
+                    Add-LogLine $matches[1]
+                }
+            }
+            $script:installerLogReadOffset = $allLines.Count
+        }
+    }
+    catch {
+        # Diagnostic log reading must never interrupt the UI.
     }
 
-    if ($script:runtimeInstallJob.State -in @('Completed', 'Failed', 'Stopped')) {
-        Write-DiagnosticLog ('Runtime installer job reached state: ' + $script:runtimeInstallJob.State)
+    if ($script:runtimeInstallProcess.HasExited) {
         $installTimer.Stop()
+        $exitCode = $script:runtimeInstallProcess.ExitCode
+        Write-DiagnosticLog ('Runtime installer process exited with code: ' + $exitCode)
 
-        Receive-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue | ForEach-Object {
-            Add-LogLine ([string]$_)
-        }
-
-        $installSucceeded = ($script:runtimeInstallJob.State -eq 'Completed')
-        $failureMessage = $null
-
-        if (-not $installSucceeded) {
-            $reason = $script:runtimeInstallJob.ChildJobs[0].JobStateInfo.Reason
-            if ($reason) {
-                $failureMessage = $reason.Message
-            }
-            else {
-                $failureMessage = 'Tool installation failed.'
-            }
-        }
-
-        Remove-Job -Job $script:runtimeInstallJob -Force -ErrorAction SilentlyContinue
-        $script:runtimeInstallJob = $null
+        $script:runtimeInstallProcess.Dispose()
+        $script:runtimeInstallProcess = $null
         Set-UiBusy $false
 
-        if (-not $installSucceeded) {
-            Add-LogLine ('Tool installation failed: ' + $failureMessage)
+        if ($exitCode -ne 0) {
             $status.Text = 'Tool installation failed.'
             [System.Windows.Forms.MessageBox]::Show(
-                "Media M8 could not install the required tools.$([Environment]::NewLine)$([Environment]::NewLine)$failureMessage",
+                "Media M8 could not install the required tools.$([Environment]::NewLine)$([Environment]::NewLine)See the session log for details:$([Environment]::NewLine)$script:LogFile",
                 'Tool installation failed',
                 'OK',
                 'Error'
@@ -324,7 +320,6 @@ $installTimer.Add_Tick({
         $btnDownload.PerformClick()
     }
 })
-
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 500
 $timer.Add_Tick({
@@ -401,9 +396,10 @@ $btnDownload.Add_Click({
         Set-UiBusy $true
 
         try {
-            Write-DiagnosticLog 'Starting runtime installer job.'
-            $script:runtimeInstallJob = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory -LogFile $script:LogFile
-            Write-DiagnosticLog ('Runtime installer job state after start: ' + $script:runtimeInstallJob.State)
+            Write-DiagnosticLog 'Starting runtime installer process.'
+            $script:installerLogReadOffset = @(Get-Content -LiteralPath $script:LogFile -ErrorAction SilentlyContinue).Count
+            $script:runtimeInstallProcess = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory -LogFile $script:LogFile
+            Write-DiagnosticLog ('Runtime installer process id: ' + $script:runtimeInstallProcess.Id)
             $installTimer.Start()
         }
         catch {
@@ -525,10 +521,18 @@ $btnDownload.Add_Click({
 })
 
 $form.Add_FormClosing({
-    if ($script:runtimeInstallJob) {
-        Stop-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $script:runtimeInstallJob -Force -ErrorAction SilentlyContinue
-        $script:runtimeInstallJob = $null
+    if ($script:runtimeInstallProcess) {
+        try {
+            if (-not $script:runtimeInstallProcess.HasExited) {
+                $script:runtimeInstallProcess.Kill()
+            }
+        }
+        catch {
+        }
+        finally {
+            $script:runtimeInstallProcess.Dispose()
+            $script:runtimeInstallProcess = $null
+        }
     }
 
     if ($script:downloadJob) {
