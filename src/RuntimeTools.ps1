@@ -67,16 +67,12 @@ function Show-MediaM8InstallPrompt {
     return ($dialog.ShowDialog($Owner) -eq [System.Windows.Forms.DialogResult]::OK)
 }
 
-function Install-MediaM8RuntimeTools {
+function Start-MediaM8RuntimeToolInstall {
     param([Parameter(Mandatory = $true)][string]$ToolsDirectory)
 
     New-Item -ItemType Directory -Path $ToolsDirectory -Force | Out-Null
 
-    Add-LogLine 'Installing required tools from official project releases...'
-    $status.Text = 'Installing required tools...'
-    Set-UiBusy $true
-
-    $job = Start-Job -ScriptBlock {
+    return Start-Job -ScriptBlock {
         param($TargetDirectory)
 
         $ErrorActionPreference = 'Stop'
@@ -174,7 +170,9 @@ function Install-MediaM8RuntimeTools {
                 $denoExtract = Join-Path $tempDirectory 'deno'
                 Expand-Archive -LiteralPath $denoZip -DestinationPath $denoExtract -Force
                 $denoSource = Get-ChildItem -LiteralPath $denoExtract -Filter 'deno.exe' -File -Recurse | Select-Object -First 1
-                if (-not $denoSource) { throw 'Deno archive did not contain deno.exe.' }
+                if (-not $denoSource) {
+                    throw 'Deno archive did not contain deno.exe.'
+                }
                 Copy-Item -LiteralPath $denoSource.FullName -Destination $denoTarget -Force
                 Write-Output 'Deno installed and verified.'
             }
@@ -185,112 +183,4 @@ function Install-MediaM8RuntimeTools {
             Remove-Item -LiteralPath $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
         }
     } -ArgumentList $ToolsDirectory
-
-    $installState = [pscustomobject]@{
-        Failure = $null
-    }
-
-    $installDialog = New-Object System.Windows.Forms.Form
-    $installDialog.Text = 'Installing required tools'
-    $installDialog.StartPosition = 'CenterParent'
-    $installDialog.FormBorderStyle = 'FixedDialog'
-    $installDialog.MaximizeBox = $false
-    $installDialog.MinimizeBox = $false
-    $installDialog.ControlBox = $false
-    $installDialog.ShowInTaskbar = $false
-    $installDialog.ClientSize = New-Object System.Drawing.Size(460, 120)
-    $installDialog.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-
-    $progressLabel = New-Object System.Windows.Forms.Label
-    $progressLabel.Location = New-Object System.Drawing.Point(20, 18)
-    $progressLabel.Size = New-Object System.Drawing.Size(420, 42)
-    $progressLabel.Text = 'Installing required tools...'
-    $installDialog.Controls.Add($progressLabel)
-
-    $progressBar = New-Object System.Windows.Forms.ProgressBar
-    $progressBar.Location = New-Object System.Drawing.Point(20, 72)
-    $progressBar.Size = New-Object System.Drawing.Size(420, 20)
-    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
-    $progressBar.MarqueeAnimationSpeed = 30
-    $installDialog.Controls.Add($progressBar)
-
-    $installTimer = New-Object System.Windows.Forms.Timer
-    $installTimer.Interval = 200
-    $installTimer.Add_Tick({
-        Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object {
-            $line = [string]$_
-            Add-LogLine $line
-            if (-not [string]::IsNullOrWhiteSpace($line)) {
-                $progressLabel.Text = $line
-            }
-        }
-
-        if ($job.State -in @('Completed', 'Failed', 'Stopped')) {
-            $installTimer.Stop()
-
-            Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object {
-                $line = [string]$_
-                Add-LogLine $line
-                if (-not [string]::IsNullOrWhiteSpace($line)) {
-                    $progressLabel.Text = $line
-                }
-            }
-
-            if ($job.State -ne 'Completed') {
-                $reason = $job.ChildJobs[0].JobStateInfo.Reason
-                if ($reason) {
-                    $installState.Failure = $reason.Message
-                }
-                else {
-                    $installState.Failure = 'Tool installation failed.'
-                }
-            }
-
-            $installDialog.Close()
-        }
-    })
-
-    try {
-        $installTimer.Start()
-        [void]$installDialog.ShowDialog($form)
-
-        if ($installState.Failure) {
-            throw $installState.Failure
-        }
-    }
-    finally {
-        $installTimer.Stop()
-        $installTimer.Dispose()
-        $installDialog.Dispose()
-        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-        Set-UiBusy $false
-    }
-
-    $status.Text = 'Required tools installed.'
-}
-
-function Ensure-MediaM8RuntimeTools {
-    param(
-        [Parameter(Mandatory = $true)][string]$ToolsDirectory,
-        [Parameter(Mandatory = $true)][string[]]$SearchDirectories,
-        [System.Windows.Forms.IWin32Window]$Owner
-    )
-
-    $paths = Get-MediaM8RuntimeToolPaths -SearchDirectories $SearchDirectories
-    $missing = @(Get-MediaM8MissingRuntimeTools -ToolPaths $paths)
-
-    if ($missing.Count -gt 0) {
-        if (-not (Show-MediaM8InstallPrompt -MissingTools $missing -Owner $Owner)) {
-            return $null
-        }
-
-        Install-MediaM8RuntimeTools -ToolsDirectory $ToolsDirectory
-        $paths = Get-MediaM8RuntimeToolPaths -SearchDirectories $SearchDirectories
-        $missing = @(Get-MediaM8MissingRuntimeTools -ToolPaths $paths)
-        if ($missing.Count -gt 0) {
-            throw ('One or more required tools are still unavailable: ' + ($missing -join ', '))
-        }
-    }
-
-    return $paths
 }
