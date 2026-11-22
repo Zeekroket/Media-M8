@@ -29,11 +29,14 @@ internal sealed class QueueWindow : Form
         BuildUi();
 
         _queue.Changed += Queue_Changed;
+        ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         FormClosed += (_, _) =>
         {
+            ThemeManager.ThemeChanged -= ThemeManager_ThemeChanged;
             _queue.Changed -= Queue_Changed;
         };
 
+        ApplyCurrentTheme();
         RefreshQueue();
     }
 
@@ -54,6 +57,15 @@ internal sealed class QueueWindow : Form
         _items.Columns.Add("Item", 525);
         _items.SelectedIndexChanged += (_, _) =>
             UpdateButtons();
+        _items.DrawColumnHeader += Items_DrawColumnHeader;
+        _items.DrawSubItem += Items_DrawSubItem;
+        _items.DrawItem += (_, e) =>
+        {
+            if (_items.View != View.Details)
+            {
+                e.DrawDefault = true;
+            }
+        };
         Controls.Add(_items);
 
         _pauseResumeButton.Location = new Point(20, 320);
@@ -121,6 +133,25 @@ internal sealed class QueueWindow : Form
 
         AcceptButton = closeButton;
         CancelButton = closeButton;
+    }
+
+    private void ThemeManager_ThemeChanged(
+        object? sender,
+        EventArgs e)
+    {
+        ApplyCurrentTheme();
+        RefreshQueue();
+    }
+
+    private void ApplyCurrentTheme()
+    {
+        ThemeManager.Apply(this);
+
+        _items.OwnerDraw =
+            ThemeManager.CurrentTheme == AppTheme.Dark;
+
+        _items.Invalidate();
+        Invalidate(invalidateChildren: true);
     }
 
     private void Queue_Changed(object? sender, EventArgs e)
@@ -210,6 +241,61 @@ internal sealed class QueueWindow : Form
 
         return _queue.Items.FirstOrDefault(
             item => item.Id == id);
+    }
+
+    private void Items_DrawColumnHeader(
+        object? sender,
+        DrawListViewColumnHeaderEventArgs e)
+    {
+        using var background = new SolidBrush(
+            ThemeManager.InputBackColor);
+        using var border = new Pen(
+            ThemeManager.BorderColor);
+
+        e.Graphics.FillRectangle(
+            background,
+            e.Bounds);
+        e.Graphics.DrawRectangle(
+            border,
+            e.Bounds);
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.Header?.Text ?? string.Empty,
+            Font,
+            e.Bounds,
+            ThemeManager.TextColor,
+            TextFormatFlags.Left |
+            TextFormatFlags.VerticalCenter |
+            TextFormatFlags.EndEllipsis);
+    }
+
+    private void Items_DrawSubItem(
+        object? sender,
+        DrawListViewSubItemEventArgs e)
+    {
+        var selected = e.Item.Selected;
+
+        using var background = new SolidBrush(
+            selected
+                ? ThemeManager.SelectionBackColor
+                : ThemeManager.InputBackColor);
+
+        e.Graphics.FillRectangle(
+            background,
+            e.Bounds);
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.SubItem.Text,
+            Font,
+            e.Bounds,
+            selected
+                ? ThemeManager.SelectionTextColor
+                : ThemeManager.TextColor,
+            TextFormatFlags.Left |
+            TextFormatFlags.VerticalCenter |
+            TextFormatFlags.EndEllipsis);
     }
 
     private static string FormatState(
