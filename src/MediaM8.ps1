@@ -67,6 +67,13 @@ $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(780, 690)
 $form.MinimumSize = New-Object System.Drawing.Size(780, 690)
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$iconPath = Join-Path $PSScriptRoot 'MediaM8.ico'
+if (-not (Test-Path -LiteralPath $iconPath)) {
+    $iconPath = Join-Path $PSScriptRoot '..\assets\MediaM8.ico'
+}
+if (Test-Path -LiteralPath $iconPath) {
+    $form.Icon = New-Object System.Drawing.Icon($iconPath)
+}
 
 $form.Controls.Add((New-Label -Text 'Media URL' -X 20 -Y 20))
 

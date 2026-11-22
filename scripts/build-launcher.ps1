@@ -3,17 +3,20 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $source = Join-Path $repoRoot 'src\launcher\MediaM8Launcher.cpp'
 $definition = Join-Path $repoRoot 'src\launcher\kernel32.def'
+$resourceDefinition = Join-Path $repoRoot 'assets\MediaM8.rc'
 $buildDir = Join-Path $repoRoot 'build\launcher'
 $distDir = Join-Path $repoRoot 'dist'
 $object = Join-Path $buildDir 'MediaM8Launcher.obj'
 $kernelLibrary = Join-Path $buildDir 'kernel32.lib'
+$resourceObject = Join-Path $buildDir 'MediaM8.res'
 $output = Join-Path $distDir 'MediaM8.exe'
 
 $clang = Get-Command 'clang++.exe' -ErrorAction SilentlyContinue
 $lld = Get-Command 'lld-link.exe' -ErrorAction SilentlyContinue
+$llvmRc = Get-Command 'llvm-rc.exe' -ErrorAction SilentlyContinue
 
-if (-not $clang -or -not $lld) {
-    throw 'LLVM clang++ and lld-link are required to build the native launcher.'
+if (-not $clang -or -not $lld -or -not $llvmRc) {
+    throw 'LLVM clang++, lld-link and llvm-rc are required to build the native launcher.'
 }
 
 New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
@@ -36,6 +39,15 @@ $compileArgs = @(
 & $clang.Source @compileArgs
 if ($LASTEXITCODE -ne 0) { throw "Failed to compile the launcher (exit code $LASTEXITCODE)." }
 
+Push-Location (Join-Path $repoRoot 'assets')
+try {
+    & $llvmRc.Source "/fo$resourceObject" $resourceDefinition
+    if ($LASTEXITCODE -ne 0) { throw "Failed to compile the icon resource (exit code $LASTEXITCODE)." }
+}
+finally {
+    Pop-Location
+}
+
 $linkArgs = @(
     '/entry:entry',
     '/subsystem:windows',
@@ -43,6 +55,7 @@ $linkArgs = @(
     '/nodefaultlib',
     "/out:$output",
     $object,
+    $resourceObject,
     $kernelLibrary
 )
 & $lld.Source @linkArgs
