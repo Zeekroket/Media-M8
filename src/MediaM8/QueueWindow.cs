@@ -114,9 +114,9 @@ internal sealed class QueueWindow : Form
             Size = new Size(80, 32),
             Anchor =
                 AnchorStyles.Bottom |
-                AnchorStyles.Right,
-            DialogResult = DialogResult.OK
+                AnchorStyles.Right
         };
+        closeButton.Click += (_, _) => Close();
         Controls.Add(closeButton);
 
         AcceptButton = closeButton;
