@@ -18,9 +18,11 @@ $resourceObject = Join-Path $buildDir 'MediaM8.res'
 $output = Join-Path $distDir 'MediaM8.exe'
 $runtimeScript = Join-Path $repoRoot 'src\MediaM8.ps1'
 $runtimeToolsScript = Join-Path $repoRoot 'src\RuntimeTools.ps1'
+$installerScript = Join-Path $repoRoot 'src\InstallRuntimeTools.ps1'
 $runtimeIcon = Join-Path $repoRoot 'assets\MediaM8.ico'
 $distScript = Join-Path $distDir 'MediaM8.ps1'
 $distToolsScript = Join-Path $distDir 'RuntimeTools.ps1'
+$distInstallerScript = Join-Path $distDir 'InstallRuntimeTools.ps1'
 $distIcon = Join-Path $distDir 'MediaM8.ico'
 
 $clang = Get-Command 'clang++.exe' -ErrorAction SilentlyContinue
@@ -46,6 +48,7 @@ function Assert-PowerShellSyntax {
 
 Assert-PowerShellSyntax -Path $runtimeScript
 Assert-PowerShellSyntax -Path $runtimeToolsScript
+Assert-PowerShellSyntax -Path $installerScript
 Write-Host 'PowerShell syntax verified.'
 
 New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
@@ -124,6 +127,7 @@ if ($Sign) {
 
 Copy-Item -LiteralPath $runtimeScript -Destination $distScript -Force
 Copy-Item -LiteralPath $runtimeToolsScript -Destination $distToolsScript -Force
+Copy-Item -LiteralPath $installerScript -Destination $distInstallerScript -Force
 Copy-Item -LiteralPath $runtimeIcon -Destination $distIcon -Force
 
 Write-Host 'Runtime files copied to dist.'
