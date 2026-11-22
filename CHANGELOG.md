@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-22
+
 ### Added
 
 - C#/.NET 10 Windows Forms application replacing the PowerShell proof-of-concept runtime.
@@ -37,4 +39,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Runtime dependencies are resolved from Media M8's local `tools` directory only.
 - The original PowerShell implementation is no longer part of the application runtime.
 
-No public release has been published yet.
+[Unreleased]: https://github.com/Zeekroket/Media-M8/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Zeekroket/Media-M8/releases/tag/v0.1.0
