@@ -10,6 +10,9 @@ internal sealed class MainForm : Form
     private readonly SessionLogger _logger;
 
     private readonly TextBox _txtUrl = new();
+    private readonly GroupBox _previewGroup = new();
+    private readonly Label _previewTitle = new();
+    private readonly Label _previewInfo = new();
     private readonly TextBox _txtFolder = new();
     private readonly RadioButton _radioMp3 = new();
     private readonly RadioButton _radioVideo = new();
@@ -26,6 +29,7 @@ internal sealed class MainForm : Form
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private CancellationTokenSource? _previewCancellation;
     private bool _stopRequested;
     private int _currentItemIndex = 1;
     private int _currentItemCount = 1;
@@ -73,9 +77,26 @@ internal sealed class MainForm : Form
 
         _txtUrl.Location = new Point(20, 43);
         _txtUrl.Size = new Size(720, 25);
+        _txtUrl.TextChanged += UrlTextBox_TextChanged;
         Controls.Add(_txtUrl);
 
-        var groupType = NewGroupBox("Download as", 20, 85, 300, 75);
+        _previewGroup.Text = "Preview";
+        _previewGroup.Location = new Point(20, 78);
+        _previewGroup.Size = new Size(720, 62);
+        Controls.Add(_previewGroup);
+
+        _previewTitle.Location = new Point(15, 18);
+        _previewTitle.Size = new Size(690, 20);
+        _previewTitle.AutoEllipsis = true;
+        _previewTitle.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+        _previewGroup.Controls.Add(_previewTitle);
+
+        _previewInfo.Location = new Point(15, 38);
+        _previewInfo.Size = new Size(690, 18);
+        _previewInfo.AutoEllipsis = true;
+        _previewGroup.Controls.Add(_previewInfo);
+
+        var groupType = NewGroupBox("Download as", 20, 150, 300, 75);
         Controls.Add(groupType);
 
         _radioMp3.Text = "MP3";
@@ -89,7 +110,7 @@ internal sealed class MainForm : Form
         _radioVideo.AutoSize = true;
         groupType.Controls.Add(_radioVideo);
 
-        var groupVideoQuality = NewGroupBox("Video quality", 340, 85, 190, 75);
+        var groupVideoQuality = NewGroupBox("Video quality", 340, 150, 190, 75);
         Controls.Add(groupVideoQuality);
 
         _cmbVideoQuality.Location = new Point(20, 29);
@@ -100,7 +121,7 @@ internal sealed class MainForm : Form
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
 
-        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 85, 190, 75);
+        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 150, 190, 75);
         Controls.Add(groupAudioQuality);
 
         _cmbAudioQuality.Location = new Point(20, 29);
@@ -114,9 +135,9 @@ internal sealed class MainForm : Form
         _radioMp3.CheckedChanged += (_, _) => UpdateQualityControls();
         _radioVideo.CheckedChanged += (_, _) => UpdateQualityControls();
 
-        Controls.Add(NewLabel("Save to", 20, 180));
+        Controls.Add(NewLabel("Save to", 20, 245));
 
-        _txtFolder.Location = new Point(20, 203);
+        _txtFolder.Location = new Point(20, 268);
         _txtFolder.Size = new Size(625, 25);
         _txtFolder.Text = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -125,37 +146,38 @@ internal sealed class MainForm : Form
         Controls.Add(_txtFolder);
 
         _btnBrowse.Text = "Browse...";
-        _btnBrowse.Location = new Point(655, 201);
+        _btnBrowse.Location = new Point(655, 266);
         _btnBrowse.Size = new Size(85, 29);
         _btnBrowse.Click += BrowseButton_Click;
         Controls.Add(_btnBrowse);
 
         _chkPlaylist.Text = "Download playlist";
-        _chkPlaylist.Location = new Point(20, 250);
+        _chkPlaylist.Location = new Point(20, 315);
         _chkPlaylist.AutoSize = true;
         _chkPlaylist.Checked = true;
+        _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
         Controls.Add(_chkPlaylist);
 
         _chkArchive.Text = "Skip previously downloaded items (downloaded.txt)";
-        _chkArchive.Location = new Point(200, 250);
+        _chkArchive.Location = new Point(200, 315);
         _chkArchive.AutoSize = true;
         _chkArchive.Checked = true;
         Controls.Add(_chkArchive);
 
         _chkOpenFolder.Text = "Open folder when finished";
-        _chkOpenFolder.Location = new Point(560, 250);
+        _chkOpenFolder.Location = new Point(560, 315);
         _chkOpenFolder.AutoSize = true;
         Controls.Add(_chkOpenFolder);
 
         _btnDownload.Text = "DOWNLOAD";
-        _btnDownload.Location = new Point(20, 290);
+        _btnDownload.Location = new Point(20, 350);
         _btnDownload.Size = new Size(580, 42);
         _btnDownload.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
         _btnDownload.Click += DownloadButton_Click;
         Controls.Add(_btnDownload);
 
         _btnStop.Text = "STOP";
-        _btnStop.Location = new Point(610, 290);
+        _btnStop.Location = new Point(610, 350);
         _btnStop.Size = new Size(130, 42);
         _btnStop.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
         _btnStop.Visible = true;
@@ -164,10 +186,10 @@ internal sealed class MainForm : Form
         Controls.Add(_btnStop);
         _btnStop.BringToFront();
 
-        Controls.Add(NewLabel("Log", 20, 350));
+        Controls.Add(NewLabel("Log", 20, 410));
 
-        _txtLog.Location = new Point(20, 373);
-        _txtLog.Size = new Size(720, 220);
+        _txtLog.Location = new Point(20, 433);
+        _txtLog.Size = new Size(720, 160);
         _txtLog.Multiline = true;
         _txtLog.ScrollBars = ScrollBars.Vertical;
         _txtLog.ReadOnly = true;
@@ -213,6 +235,111 @@ internal sealed class MainForm : Form
             Location = new Point(x, y),
             Size = new Size(width, height)
         };
+    }
+
+    private async void UrlTextBox_TextChanged(object? sender, EventArgs e)
+    {
+        _previewCancellation?.Cancel();
+        _previewCancellation?.Dispose();
+        _previewCancellation = new CancellationTokenSource();
+
+        var cancellation = _previewCancellation;
+        ClearMediaPreview();
+
+        var url = _txtUrl.Text.Trim();
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri) ||
+            (parsedUri.Scheme != Uri.UriSchemeHttp &&
+             parsedUri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(500, cancellation.Token);
+
+            var toolsDirectory = Path.Combine(AppContext.BaseDirectory, "tools");
+            var runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
+
+            if (runtimeTools.YtDlp is null || runtimeTools.Deno is null)
+            {
+                _previewTitle.Text = "Preview will be available after first setup.";
+                _previewInfo.Text = string.Empty;
+                return;
+            }
+
+            _previewTitle.Text = "Checking link...";
+            _previewInfo.Text = string.Empty;
+
+            var preview = await MediaPreviewLoader.LoadAsync(
+                runtimeTools.YtDlp,
+                url,
+                _chkPlaylist.Checked,
+                IsYouTubeUrl(url),
+                runtimeTools.Deno,
+                cancellation.Token);
+
+            if (cancellation.IsCancellationRequested ||
+                !ReferenceEquals(_previewCancellation, cancellation))
+            {
+                return;
+            }
+
+            ShowMediaPreview(preview);
+        }
+        catch (OperationCanceledException)
+        {
+            // URL changed while the preview was loading.
+        }
+        catch (Exception ex)
+        {
+            if (!cancellation.IsCancellationRequested &&
+                ReferenceEquals(_previewCancellation, cancellation))
+            {
+                _previewTitle.Text = "Preview unavailable for this link.";
+                _previewInfo.Text = string.Empty;
+                _logger.Write($"Preview failed: {ex}", "PREVIEW");
+            }
+        }
+    }
+
+    private void ClearMediaPreview()
+    {
+        _previewTitle.Text = string.Empty;
+        _previewInfo.Text = string.Empty;
+    }
+
+    private void ShowMediaPreview(MediaPreviewInfo preview)
+    {
+        _previewTitle.Text = preview.Title;
+
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(preview.Uploader))
+        {
+            parts.Add(preview.Uploader);
+        }
+
+        if (preview.IsPlaylist)
+        {
+            parts.Add(preview.PlaylistCount is > 0
+                ? $"{preview.PlaylistCount} items"
+                : "Playlist");
+        }
+        else if (preview.Duration is not null)
+        {
+            parts.Add(FormatDuration(preview.Duration.Value));
+        }
+
+        _previewInfo.Text = string.Join(" · ", parts);
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalHours >= 1
+            ? duration.ToString(@"h\:mm\:ss")
+            : duration.ToString(@"m\:ss");
     }
 
     private void BrowseButton_Click(object? sender, EventArgs e)
@@ -1074,6 +1201,10 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        _previewCancellation?.Cancel();
+        _previewCancellation?.Dispose();
+        _previewCancellation = null;
+
         if (_downloadProcess is null)
         {
             return;
