@@ -16,6 +16,10 @@ $object = Join-Path $buildDir 'MediaM8Launcher.obj'
 $kernelLibrary = Join-Path $buildDir 'kernel32.lib'
 $resourceObject = Join-Path $buildDir 'MediaM8.res'
 $output = Join-Path $distDir 'MediaM8.exe'
+$runtimeScript = Join-Path $repoRoot 'src\MediaM8.ps1'
+$runtimeIcon = Join-Path $repoRoot 'assets\MediaM8.ico'
+$distScript = Join-Path $distDir 'MediaM8.ps1'
+$distIcon = Join-Path $distDir 'MediaM8.ico'
 
 $clang = Get-Command 'clang++.exe' -ErrorAction SilentlyContinue
 $lld = Get-Command 'lld-link.exe' -ErrorAction SilentlyContinue
@@ -99,4 +103,8 @@ if ($Sign) {
     Write-Host 'Signature verified.'
 }
 
+Copy-Item -LiteralPath $runtimeScript -Destination $distScript -Force
+Copy-Item -LiteralPath $runtimeIcon -Destination $distIcon -Force
+
+Write-Host 'Runtime files copied to dist.'
 Get-FileHash -Path $output -Algorithm SHA256 | Format-List
