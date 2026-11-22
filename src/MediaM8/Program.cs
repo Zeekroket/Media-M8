@@ -12,7 +12,13 @@ internal static class Program
     private static void Main()
     {
         _ = SetCurrentProcessExplicitAppUserModelID("Zeekroket.MediaM8");
-        ApplicationConfiguration.Initialize();
+
+        // Keep the original PowerShell POC layout dimensions consistent on
+        // displays using Windows scaling. The POC was DPI-virtualized by its
+        // host process, so Windows scaled the complete UI as one unit.
+        Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
         using var logger = new SessionLogger(AppContext.BaseDirectory);
         logger.Write($"Media M8 {AppInfo.Version} session started.");
