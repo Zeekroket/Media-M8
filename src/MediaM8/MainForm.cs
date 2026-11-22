@@ -17,6 +17,8 @@ internal sealed class MainForm : Form
     private readonly DownloadQueueModel _downloadQueue = new();
 
     private readonly MenuStrip _mainMenu = new();
+    private readonly ToolStripMenuItem _matchSystemThemeItem =
+        new("Match System");
     private readonly ToolStripMenuItem _lightThemeItem = new("Light");
     private readonly ToolStripMenuItem _darkThemeItem = new("Dark");
     private readonly TextBox _txtUrl = new();
@@ -277,10 +279,14 @@ internal sealed class MainForm : Form
 
         var appearanceMenu = new ToolStripMenuItem(
             "Appearance");
+        _matchSystemThemeItem.Click += (_, _) =>
+            ThemeManager.SetTheme(AppTheme.MatchSystem);
         _lightThemeItem.Click += (_, _) =>
             ThemeManager.SetTheme(AppTheme.Light);
         _darkThemeItem.Click += (_, _) =>
             ThemeManager.SetTheme(AppTheme.Dark);
+        appearanceMenu.DropDownItems.Add(_matchSystemThemeItem);
+        appearanceMenu.DropDownItems.Add(new ToolStripSeparator());
         appearanceMenu.DropDownItems.Add(_lightThemeItem);
         appearanceMenu.DropDownItems.Add(_darkThemeItem);
 
@@ -384,6 +390,8 @@ internal sealed class MainForm : Form
         ThemeManager.ApplyMenu(_mainMenu);
         ThemeManager.ApplyProgressBar(_progressBar);
 
+        _matchSystemThemeItem.Checked =
+            ThemeManager.CurrentTheme == AppTheme.MatchSystem;
         _lightThemeItem.Checked =
             ThemeManager.CurrentTheme == AppTheme.Light;
         _darkThemeItem.Checked =
@@ -428,6 +436,19 @@ internal sealed class MainForm : Form
         };
 
         _queueWindow.Show(this);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        const int WmSettingChange = 0x001A;
+
+        base.WndProc(ref m);
+
+        if (m.Msg == WmSettingChange &&
+            ThemeManager.CurrentTheme == AppTheme.MatchSystem)
+        {
+            ThemeManager.NotifySystemThemeChanged();
+        }
     }
 
     protected override bool ProcessCmdKey(
