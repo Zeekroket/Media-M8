@@ -22,11 +22,22 @@ Media M8 prepares the playlist first so it knows how many items there are. It th
 
 If you only want the single video from a link that also contains a playlist, clear **Download playlist** before downloading.
 
+## Queue several downloads
+
+Start the first download normally with **DOWNLOAD**.
+
+While it is running, paste another link and choose its settings. The button changes to **ADD TO QUEUE**. Each queued item keeps the settings that were selected when it was added.
+
+Media M8 downloads exactly one queue item at a time and automatically starts the next waiting item when the current one finishes.
+
+The queue only exists for the current Media M8 session.
+
 ## Stop a download
 
 Click **STOP** while a download is active.
 
-Media M8 stops the current download and does not continue with the next playlist item. You can start another download afterwards.
+STOP ends the current queue item, including the rest of that item's playlist. If other queue items are waiting, Media M8 continues with the next one.
+
 
 ## Skip files you already downloaded
 
