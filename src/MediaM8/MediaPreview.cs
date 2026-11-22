@@ -9,7 +9,8 @@ internal sealed record MediaPreviewInfo(
     string? Uploader,
     TimeSpan? Duration,
     int? PlaylistCount,
-    bool IsPlaylist);
+    bool IsPlaylist,
+    string? ThumbnailUrl);
 
 internal static class MediaPreviewLoader
 {
@@ -119,6 +120,7 @@ internal static class MediaPreviewLoader
         }
 
         TimeSpan? duration = null;
+        string? thumbnailUrl = null;
 
         if (!isPlaylist)
         {
@@ -127,6 +129,8 @@ internal static class MediaPreviewLoader
             {
                 duration = TimeSpan.FromSeconds(durationSeconds.Value);
             }
+
+            thumbnailUrl = GetThumbnailUrl(root);
         }
 
         return new MediaPreviewInfo(
@@ -134,7 +138,54 @@ internal static class MediaPreviewLoader
             uploader,
             duration,
             playlistCount,
-            isPlaylist);
+            isPlaylist,
+            thumbnailUrl);
+    }
+
+    private static string? GetThumbnailUrl(JsonElement root)
+    {
+        var directThumbnail = GetString(root, "thumbnail");
+        if (IsHttpUrl(directThumbnail))
+        {
+            return directThumbnail;
+        }
+
+        if (!root.TryGetProperty("thumbnails", out var thumbnails) ||
+            thumbnails.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        string? bestUrl = null;
+        long bestArea = -1;
+
+        foreach (var thumbnail in thumbnails.EnumerateArray())
+        {
+            var url = GetString(thumbnail, "url");
+            if (!IsHttpUrl(url))
+            {
+                continue;
+            }
+
+            var width = GetInt32(thumbnail, "width") ?? 0;
+            var height = GetInt32(thumbnail, "height") ?? 0;
+            var area = (long)width * height;
+
+            if (bestUrl is null || area >= bestArea)
+            {
+                bestUrl = url;
+                bestArea = area;
+            }
+        }
+
+        return bestUrl;
+    }
+
+    private static bool IsHttpUrl(string? value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp ||
+                uri.Scheme == Uri.UriSchemeHttps);
     }
 
     private static string? GetString(JsonElement element, string propertyName)
