@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Persistent per-session diagnostic logging under `logs/`.
 - Dedicated Windows AppUserModelID so the Media M8 window has its own taskbar identity.
 - Machine-readable yt-dlp progress tracking for download percentage, byte counts, speed, ETA and processing phase.
+- Visible download progress with plain-language phase, percentage, speed and estimated time remaining.
+- Playlists are prepared before downloading and then processed one item at a time so Media M8 knows the current item and total count.
 
 ### Changed
 

@@ -21,9 +21,12 @@ internal sealed class MainForm : Form
     private readonly Button _btnBrowse = new();
     private readonly Button _btnDownload = new();
     private readonly TextBox _txtLog = new();
+    private readonly ProgressBar _progressBar = new();
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private int _currentItemIndex = 1;
+    private int _currentItemCount = 1;
     private DownloadProgressSnapshot _currentProgress = new(
         DownloadPhase.Preparing,
         null,
@@ -160,9 +163,18 @@ internal sealed class MainForm : Form
         _txtLog.Font = new Font("Consolas", 9f);
         Controls.Add(_txtLog);
 
+        _progressBar.Location = new Point(20, 607);
+        _progressBar.Size = new Size(720, 18);
+        _progressBar.Minimum = 0;
+        _progressBar.Maximum = 100;
+        _progressBar.Value = 0;
+        _progressBar.Style = ProgressBarStyle.Continuous;
+        Controls.Add(_progressBar);
+
         _status.Text = "Ready.";
-        _status.Location = new Point(20, 610);
-        _status.AutoSize = true;
+        _status.Location = new Point(20, 631);
+        _status.Size = new Size(720, 20);
+        _status.AutoEllipsis = true;
         Controls.Add(_status);
     }
 
@@ -351,8 +363,6 @@ internal sealed class MainForm : Form
             return;
         }
 
-        var arguments = BuildYtDlpArguments(url, folder, runtimeTools);
-
         _txtLog.Clear();
         AddUiLog($"Output folder: {folder}");
         AddUiLog(
@@ -365,7 +375,6 @@ internal sealed class MainForm : Form
         AddUiLog(string.Empty);
 
         SetUiBusy(true);
-        _status.Text = "Downloading...";
         SetDownloadProgress(new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
             null,
@@ -375,14 +384,47 @@ internal sealed class MainForm : Form
             null,
             "preparing"));
 
+        if (_chkPlaylist.Checked)
+        {
+            _status.Text = "Preparing playlist...";
+        }
+
         try
         {
-            var exitCode = await RunDownloadAsync(runtimeTools.YtDlp, arguments);
+            var plan = await DownloadPlanner.PrepareAsync(
+                runtimeTools.YtDlp,
+                url,
+                _chkPlaylist.Checked,
+                IsYouTubeUrl(url),
+                runtimeTools.Deno,
+                _logger,
+                CancellationToken.None);
 
-            if (exitCode != 0)
+            if (plan.IsPlaylist)
             {
-                throw new InvalidOperationException(
-                    $"yt-dlp exited with code {exitCode}.");
+                AddUiLog($"Playlist prepared: {plan.Items.Count} items.");
+                AddUiLog(string.Empty);
+            }
+
+            foreach (var item in plan.Items)
+            {
+                SetPreparingItem(item.Index, item.Total);
+
+                var arguments = BuildYtDlpArguments(
+                    item.Url,
+                    folder,
+                    runtimeTools,
+                    plan.IsPlaylist ? item.Index : null);
+
+                var exitCode = await RunDownloadAsync(
+                    runtimeTools.YtDlp,
+                    arguments);
+
+                if (exitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"yt-dlp exited with code {exitCode}.");
+                }
             }
 
             SetDownloadProgress(new DownloadProgressSnapshot(
@@ -425,7 +467,8 @@ internal sealed class MainForm : Form
     private List<string> BuildYtDlpArguments(
         string url,
         string folder,
-        RuntimeToolPaths runtimeTools)
+        RuntimeToolPaths runtimeTools,
+        int? playlistIndex)
     {
         var arguments = new List<string>
         {
@@ -436,7 +479,8 @@ internal sealed class MainForm : Form
             "--progress-template",
             $"download:{DownloadProgressParser.Marker}download|%(progress)j",
             "--progress-template",
-            $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j"
+            $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j",
+            "--no-quiet"
         };
 
         if (IsYouTubeUrl(url))
@@ -451,20 +495,13 @@ internal sealed class MainForm : Form
         arguments.Add("--ffmpeg-location");
         arguments.Add(Path.GetDirectoryName(runtimeTools.FFmpeg)!);
 
-        string outputTemplate;
+        arguments.Add("--no-playlist");
 
-        if (_chkPlaylist.Checked)
-        {
-            arguments.Add("--yes-playlist");
-            outputTemplate = Path.Combine(
+        var outputTemplate = playlistIndex is > 0
+            ? Path.Combine(
                 folder,
-                "%(playlist_index)03d - %(title)s.%(ext)s");
-        }
-        else
-        {
-            arguments.Add("--no-playlist");
-            outputTemplate = Path.Combine(folder, "%(title)s.%(ext)s");
-        }
+                $"{playlistIndex.Value:D3} - %(title)s.%(ext)s")
+            : Path.Combine(folder, "%(title)s.%(ext)s");
 
         if (_chkArchive.Checked)
         {
@@ -593,6 +630,54 @@ internal sealed class MainForm : Form
         AddUiLog(line);
     }
 
+    private void SetPreparingItem(int playlistIndex, int playlistCount)
+    {
+        _currentItemIndex = playlistIndex;
+        _currentItemCount = playlistCount;
+
+        var snapshot = new DownloadProgressSnapshot(
+            DownloadPhase.Preparing,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "preparing");
+
+        _currentProgress = snapshot;
+
+        var itemText = playlistCount > 1
+            ? $"item {playlistIndex} of {playlistCount}"
+            : "single item";
+
+        _logger.Write(
+            $"phase=Preparing; status=preparing; {itemText}",
+            "PROGRESS");
+
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        void Render()
+        {
+            _progressBar.Style = ProgressBarStyle.Marquee;
+            _progressBar.MarqueeAnimationSpeed = 30;
+            _status.Text = playlistCount > 1
+                ? $"Preparing item {playlistIndex} of {playlistCount}..."
+                : "Preparing download...";
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke((Action)Render);
+        }
+        else
+        {
+            Render();
+        }
+    }
+
     private void SetDownloadProgress(DownloadProgressSnapshot snapshot)
     {
         _currentProgress = snapshot;
@@ -606,6 +691,126 @@ internal sealed class MainForm : Form
             $"speed_bytes_per_second={FormatNumber(snapshot.SpeedBytesPerSecond)}; " +
             $"eta_seconds={FormatNumber(snapshot.EtaSeconds)}",
             "PROGRESS");
+
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => RenderDownloadProgress(snapshot)));
+            return;
+        }
+
+        RenderDownloadProgress(snapshot);
+    }
+
+    private void RenderDownloadProgress(DownloadProgressSnapshot snapshot)
+    {
+        switch (snapshot.Phase)
+        {
+            case DownloadPhase.Preparing:
+                _progressBar.Style = ProgressBarStyle.Marquee;
+                _progressBar.MarqueeAnimationSpeed = 30;
+                _status.Text = "Preparing download...";
+                break;
+
+            case DownloadPhase.Downloading:
+                if (snapshot.Percentage is not null)
+                {
+                    _progressBar.Style = ProgressBarStyle.Continuous;
+                    _progressBar.MarqueeAnimationSpeed = 0;
+                    _progressBar.Value = Math.Clamp(
+                        (int)Math.Round(snapshot.Percentage.Value),
+                        _progressBar.Minimum,
+                        _progressBar.Maximum);
+                }
+                else
+                {
+                    _progressBar.Style = ProgressBarStyle.Marquee;
+                    _progressBar.MarqueeAnimationSpeed = 30;
+                }
+
+                _status.Text = BuildDownloadStatusText(snapshot);
+                break;
+
+            case DownloadPhase.Processing:
+                _progressBar.Style = ProgressBarStyle.Marquee;
+                _progressBar.MarqueeAnimationSpeed = 30;
+                _status.Text = _currentItemCount > 1
+                    ? $"Processing item {_currentItemIndex} of {_currentItemCount}..."
+                    : "Processing download...";
+                break;
+
+            case DownloadPhase.Completed:
+                _progressBar.Style = ProgressBarStyle.Continuous;
+                _progressBar.MarqueeAnimationSpeed = 0;
+                _progressBar.Value = 100;
+                _status.Text = "Download completed.";
+                break;
+        }
+    }
+
+    private string BuildDownloadStatusText(DownloadProgressSnapshot snapshot)
+    {
+        var heading = _currentItemCount > 1
+            ? $"Downloading item {_currentItemIndex} of {_currentItemCount}"
+            : "Downloading";
+
+        var parts = new List<string> { heading };
+
+        if (snapshot.Percentage is not null)
+        {
+            parts.Add($"{snapshot.Percentage.Value:0}%");
+        }
+
+        if (snapshot.SpeedBytesPerSecond is > 0)
+        {
+            parts.Add($"{FormatSpeed(snapshot.SpeedBytesPerSecond.Value)}");
+        }
+
+        if (snapshot.EtaSeconds is >= 0)
+        {
+            parts.Add($"about {FormatEta(snapshot.EtaSeconds.Value)} remaining");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatSpeed(double bytesPerSecond)
+    {
+        const double kilo = 1024d;
+        const double mega = kilo * 1024d;
+
+        if (bytesPerSecond >= mega)
+        {
+            return $"{bytesPerSecond / mega:0.0} MB/s";
+        }
+
+        if (bytesPerSecond >= kilo)
+        {
+            return $"{bytesPerSecond / kilo:0} KB/s";
+        }
+
+        return $"{bytesPerSecond:0} B/s";
+    }
+
+    private static string FormatEta(int seconds)
+    {
+        if (seconds < 60)
+        {
+            return seconds <= 1 ? "1 second" : $"{seconds} seconds";
+        }
+
+        if (seconds < 3600)
+        {
+            var minutes = Math.Max(1, (int)Math.Ceiling(seconds / 60d));
+            return minutes == 1 ? "1 minute" : $"{minutes} minutes";
+        }
+
+        var hours = Math.Max(1, (int)Math.Ceiling(seconds / 3600d));
+        return hours == 1 ? "1 hour" : $"{hours} hours";
     }
 
     private static string FormatNumber<T>(T? value)
