@@ -14,6 +14,7 @@ internal sealed class MainForm : Form
     private static readonly HttpClient ThumbnailHttpClient = new();
 
     private readonly SessionLogger _logger;
+    private readonly DownloadQueueModel _downloadQueue = new();
 
     private readonly MenuStrip _mainMenu = new();
     private readonly TextBox _txtUrl = new();
@@ -38,6 +39,8 @@ internal sealed class MainForm : Form
 
     private Process? _downloadProcess;
     private CancellationTokenSource? _previewCancellation;
+    private DownloadQueueItem? _activeQueueItem;
+    private bool _queueWorkerRunning;
     private bool _stopRequested;
     private int _currentItemIndex = 1;
     private int _currentItemCount = 1;
@@ -390,7 +393,7 @@ internal sealed class MainForm : Form
 
     private async Task CheckDownloadToolsAsync()
     {
-        if (_isBusy)
+        if (_isBusy || _queueWorkerRunning)
         {
             MessageBox.Show(
                 this,
@@ -442,7 +445,7 @@ internal sealed class MainForm : Form
 
     private async Task UpdateDownloadToolsAsync()
     {
-        if (_isBusy)
+        if (_isBusy || _queueWorkerRunning)
         {
             MessageBox.Show(
                 this,
@@ -992,88 +995,6 @@ internal sealed class MainForm : Form
             return;
         }
 
-        var toolsDirectory = Path.Combine(AppContext.BaseDirectory, "tools");
-        var runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
-        var missingTools = RuntimeToolManager.GetMissingTools(runtimeTools);
-
-        _logger.Write(
-            "Runtime detection: " +
-            $"yt-dlp={runtimeTools.YtDlp ?? string.Empty}; " +
-            $"ffmpeg={runtimeTools.FFmpeg ?? string.Empty}; " +
-            $"ffprobe={runtimeTools.FFprobe ?? string.Empty}; " +
-            $"deno={runtimeTools.Deno ?? string.Empty}");
-
-        _logger.Write(
-            "Missing runtime tools: " +
-            (missingTools.Count == 0 ? "none" : string.Join(", ", missingTools)));
-
-        if (missingTools.Count > 0)
-        {
-            if (!ShowInstallPrompt(missingTools))
-            {
-                _status.Text = "Required tools are missing.";
-                return;
-            }
-
-            AddUiLog("Installing required tools from official project releases...");
-            _status.Text = "Installing required tools...";
-            SetUiBusy(true);
-
-            try
-            {
-                var progress = new Progress<string>(AddUiLog);
-
-                await Task.Run(
-                    () => RuntimeToolManager.InstallMissingToolsAsync(
-                        toolsDirectory,
-                        _logger,
-                        progress,
-                        CancellationToken.None));
-
-                runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
-                missingTools = RuntimeToolManager.GetMissingTools(runtimeTools);
-
-                if (missingTools.Count > 0)
-                {
-                    throw new InvalidOperationException(
-                        "One or more required tools are still unavailable: " +
-                        string.Join(", ", missingTools));
-                }
-
-                _status.Text = "Required tools installed.";
-            }
-            catch (Exception ex)
-            {
-                AddUiLog($"Tool installation failed: {ex.Message}");
-                _logger.Write($"Tool installation failed: {ex}", "ERROR");
-                _status.Text = "Tool installation failed.";
-
-                MessageBox.Show(
-                    this,
-                    $"Media M8 could not install the required tools." +
-                    $"{Environment.NewLine}{Environment.NewLine}{ex.Message}" +
-                    $"{Environment.NewLine}{Environment.NewLine}" +
-                    $"Session log: {_logger.LogFilePath}",
-                    "Tool installation failed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-                return;
-            }
-            finally
-            {
-                SetUiBusy(false);
-            }
-        }
-
-        if (runtimeTools.YtDlp is null ||
-            runtimeTools.FFmpeg is null ||
-            runtimeTools.FFprobe is null ||
-            runtimeTools.Deno is null)
-        {
-            _status.Text = "Required tools are missing.";
-            return;
-        }
-
         try
         {
             Directory.CreateDirectory(folder);
@@ -1089,19 +1010,248 @@ internal sealed class MainForm : Form
             return;
         }
 
-        _txtLog.Clear();
-        AddUiLog($"Output folder: {folder}");
+        var displayName = GetCurrentQueueDisplayName(url);
+        var request = new DownloadRequest(
+            url,
+            displayName,
+            folder,
+            _chkPlaylist.Checked,
+            _chkArchive.Checked,
+            _chkOpenFolder.Checked,
+            _radioMp3.Checked,
+            _cmbAudioQuality.SelectedItem?.ToString() ?? "Best (VBR 0)",
+            _cmbVideoQuality.SelectedItem?.ToString() ?? "480p");
+
+        var wasRunning = _queueWorkerRunning;
+
+        if (!wasRunning)
+        {
+            _txtLog.Clear();
+        }
+
+        var queueItem = _downloadQueue.Enqueue(request);
+
+        AddUiLog(
+            $"Queued #{queueItem.Id}: {request.DisplayName}");
+        AddUiLog(
+            $"Queue state: {_downloadQueue.PendingCount} waiting.");
+
+        _txtUrl.Clear();
+
+        if (wasRunning)
+        {
+            _status.Text =
+                $"Added to queue · {_downloadQueue.PendingCount} waiting.";
+        }
+
+        UpdateQueueButtonText();
+
+        if (!_queueWorkerRunning)
+        {
+            await ProcessDownloadQueueAsync();
+        }
+    }
+
+    private string GetCurrentQueueDisplayName(string url)
+    {
+        var previewTitle = _previewTitle.Text.Trim();
+
+        if (!string.IsNullOrWhiteSpace(previewTitle) &&
+            !previewTitle.Equals(
+                "Checking link...",
+                StringComparison.OrdinalIgnoreCase) &&
+            !previewTitle.StartsWith(
+                "Preview ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return previewTitle;
+        }
+
+        return url;
+    }
+
+    private async Task ProcessDownloadQueueAsync()
+    {
+        if (_queueWorkerRunning)
+        {
+            return;
+        }
+
+        _queueWorkerRunning = true;
+        UpdateQueueButtonText();
+
+        try
+        {
+            while (_downloadQueue.GetNextPending() is { } queueItem)
+            {
+                _activeQueueItem = queueItem;
+                queueItem.State = DownloadQueueState.Downloading;
+                queueItem.StatusDetail = null;
+
+                AddUiLog(string.Empty);
+                AddUiLog(
+                    $"Starting queued item #{queueItem.Id}: " +
+                    queueItem.Request.DisplayName);
+
+                var state = await ProcessQueueItemAsync(
+                    queueItem.Request);
+
+                queueItem.State = state;
+
+                queueItem.StatusDetail = state switch
+                {
+                    DownloadQueueState.Completed => "Completed",
+                    DownloadQueueState.Stopped => "Stopped by user",
+                    DownloadQueueState.Failed => "Download failed",
+                    _ => queueItem.StatusDetail
+                };
+
+                AddUiLog(
+                    $"Queue item #{queueItem.Id}: {state}.");
+
+                if (_downloadQueue.PendingCount > 0)
+                {
+                    AddUiLog(
+                        $"Queue state: {_downloadQueue.PendingCount} waiting.");
+                }
+            }
+        }
+        finally
+        {
+            _activeQueueItem = null;
+            _queueWorkerRunning = false;
+            UpdateQueueButtonText();
+
+            var completed = _downloadQueue.Items.Count(
+                item => item.State == DownloadQueueState.Completed);
+            var failed = _downloadQueue.Items.Count(
+                item => item.State == DownloadQueueState.Failed);
+            var stopped = _downloadQueue.Items.Count(
+                item => item.State == DownloadQueueState.Stopped);
+
+            AddUiLog(string.Empty);
+            AddUiLog(
+                $"Queue finished: {completed} completed, " +
+                $"{failed} failed, {stopped} stopped.");
+            _status.Text = "Queue finished.";
+        }
+    }
+
+    private async Task<DownloadQueueState> ProcessQueueItemAsync(
+        DownloadRequest request)
+    {
+        var toolsDirectory = Path.Combine(
+            AppContext.BaseDirectory,
+            "tools");
+        var runtimeTools = RuntimeToolManager.GetToolPaths(
+            toolsDirectory);
+        var missingTools = RuntimeToolManager.GetMissingTools(
+            runtimeTools);
+
+        _logger.Write(
+            "Runtime detection: " +
+            $"yt-dlp={runtimeTools.YtDlp ?? string.Empty}; " +
+            $"ffmpeg={runtimeTools.FFmpeg ?? string.Empty}; " +
+            $"ffprobe={runtimeTools.FFprobe ?? string.Empty}; " +
+            $"deno={runtimeTools.Deno ?? string.Empty}");
+
+        _logger.Write(
+            "Missing runtime tools: " +
+            (missingTools.Count == 0
+                ? "none"
+                : string.Join(", ", missingTools)));
+
+        if (missingTools.Count > 0)
+        {
+            if (!ShowInstallPrompt(missingTools))
+            {
+                _status.Text = "Required tools are missing.";
+                return DownloadQueueState.Failed;
+            }
+
+            AddUiLog(
+                "Installing required tools from official project releases...");
+            _status.Text = "Installing required tools...";
+            SetUiBusy(true);
+
+            try
+            {
+                var progress = new Progress<string>(AddUiLog);
+
+                await RuntimeToolManager.InstallMissingToolsAsync(
+                    toolsDirectory,
+                    _logger,
+                    progress,
+                    CancellationToken.None);
+
+                runtimeTools = RuntimeToolManager.GetToolPaths(
+                    toolsDirectory);
+                missingTools = RuntimeToolManager.GetMissingTools(
+                    runtimeTools);
+
+                if (missingTools.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        "One or more required tools are still unavailable: " +
+                        string.Join(", ", missingTools));
+                }
+
+                _status.Text = "Required tools installed.";
+            }
+            catch (Exception ex)
+            {
+                AddUiLog(
+                    $"Tool installation failed: {ex.Message}");
+                _logger.Write(
+                    $"Tool installation failed: {ex}",
+                    "ERROR");
+                _status.Text = "Tool installation failed.";
+
+                MessageBox.Show(
+                    this,
+                    "Media M8 could not install the required tools." +
+                    Environment.NewLine +
+                    Environment.NewLine +
+                    ex.Message +
+                    Environment.NewLine +
+                    Environment.NewLine +
+                    $"Session log: {_logger.LogFilePath}",
+                    "Tool installation failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+
+                return DownloadQueueState.Failed;
+            }
+            finally
+            {
+                SetUiBusy(false);
+            }
+        }
+
+        if (runtimeTools.YtDlp is null ||
+            runtimeTools.FFmpeg is null ||
+            runtimeTools.FFprobe is null ||
+            runtimeTools.Deno is null)
+        {
+            _status.Text = "Required tools are missing.";
+            return DownloadQueueState.Failed;
+        }
+
+        AddUiLog($"Output folder: {request.Folder}");
         AddUiLog(
             "Mode: " +
-            (_radioMp3.Checked
-                ? $"MP3 - {_cmbAudioQuality.SelectedItem}"
-                : $"Video - {_cmbVideoQuality.SelectedItem}"));
-        AddUiLog($"Playlist: {(_chkPlaylist.Checked ? "yes" : "no")}");
-        AddUiLog($"Open folder when finished: {(_chkOpenFolder.Checked ? "yes" : "no")}");
+            (request.DownloadAsMp3
+                ? $"MP3 - {request.AudioQuality}"
+                : $"Video - {request.VideoQuality}"));
+        AddUiLog(
+            $"Playlist: {(request.DownloadPlaylist ? "yes" : "no")}");
+        AddUiLog(
+            "Open folder when finished: " +
+            (request.OpenFolderWhenFinished ? "yes" : "no"));
         AddUiLog(string.Empty);
 
         _stopRequested = false;
-        SetUiBusy(true);
+
         SetDownloadProgress(new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
             null,
@@ -1111,7 +1261,7 @@ internal sealed class MainForm : Form
             null,
             "preparing"));
 
-        if (_chkPlaylist.Checked)
+        if (request.DownloadPlaylist)
         {
             _status.Text = "Preparing playlist...";
         }
@@ -1120,28 +1270,33 @@ internal sealed class MainForm : Form
         {
             var plan = await DownloadPlanner.PrepareAsync(
                 runtimeTools.YtDlp,
-                url,
-                _chkPlaylist.Checked,
-                IsYouTubeUrl(url),
+                request.Url,
+                request.DownloadPlaylist,
+                IsYouTubeUrl(request.Url),
                 runtimeTools.Deno,
                 _logger,
                 CancellationToken.None);
 
             if (plan.IsPlaylist)
             {
-                AddUiLog($"Playlist prepared: {plan.Items.Count} items.");
+                AddUiLog(
+                    $"Playlist prepared: {plan.Items.Count} items.");
                 AddUiLog(string.Empty);
             }
 
             foreach (var item in plan.Items)
             {
-                SetPreparingItem(item.Index, item.Total);
+                SetPreparingItem(
+                    item.Index,
+                    item.Total);
 
                 var arguments = BuildYtDlpArguments(
+                    request,
                     item.Url,
-                    folder,
                     runtimeTools,
-                    plan.IsPlaylist ? item.Index : null);
+                    plan.IsPlaylist
+                        ? item.Index
+                        : null);
 
                 var result = await RunDownloadAsync(
                     runtimeTools.YtDlp,
@@ -1176,37 +1331,47 @@ internal sealed class MainForm : Form
             AddUiLog("Done.");
             _status.Text = "Download completed.";
 
-            if (_chkOpenFolder.Checked && Directory.Exists(folder))
+            if (request.OpenFolderWhenFinished &&
+                Directory.Exists(request.Folder))
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = folder,
+                    FileName = request.Folder,
                     UseShellExecute = true
                 });
             }
+
+            return DownloadQueueState.Completed;
         }
         catch (OperationCanceledException) when (_stopRequested)
         {
             AddUiLog(string.Empty);
             AddUiLog("Download stopped.");
-            _logger.Write("Download stopped by user.", "UI");
+            _logger.Write(
+                "Download stopped by user.",
+                "UI");
 
             _progressBar.Style = ProgressBarStyle.Continuous;
             _progressBar.MarqueeAnimationSpeed = 0;
             _progressBar.Value = 0;
             _status.Text = "Download stopped.";
+
+            return DownloadQueueState.Stopped;
         }
         catch (Exception ex)
         {
             AddUiLog(string.Empty);
 
             var failure = FriendlyDownloadFailure.From(ex);
-            var technicalDetails = ex is DownloadFailureException downloadFailure
-                ? downloadFailure.TechnicalDetails
-                : ex.ToString();
+            var technicalDetails =
+                ex is DownloadFailureException downloadFailure
+                    ? downloadFailure.TechnicalDetails
+                    : ex.ToString();
 
             AddUiLog(failure.Message);
-            _logger.Write($"Download failed: {ex}", "ERROR");
+            _logger.Write(
+                $"Download failed: {ex}",
+                "ERROR");
             _status.Text = failure.Status;
 
             FriendlyErrorDialog.Show(
@@ -1214,6 +1379,8 @@ internal sealed class MainForm : Form
                 failure,
                 technicalDetails,
                 _logger.LogFilePath);
+
+            return DownloadQueueState.Failed;
         }
         finally
         {
@@ -1221,13 +1388,12 @@ internal sealed class MainForm : Form
             _downloadProcess?.Dispose();
             _downloadProcess = null;
             _stopRequested = false;
-            SetUiBusy(false);
         }
     }
 
     private List<string> BuildYtDlpArguments(
+        DownloadRequest request,
         string url,
-        string folder,
         RuntimeToolPaths runtimeTools,
         int? playlistIndex)
     {
@@ -1247,30 +1413,37 @@ internal sealed class MainForm : Form
         if (IsYouTubeUrl(url))
         {
             arguments.Add("--extractor-args");
-            arguments.Add("youtube:player_client=default,-web_embedded");
+            arguments.Add(
+                "youtube:player_client=default,-web_embedded");
         }
 
         arguments.Add("--js-runtimes");
         arguments.Add("deno:" + runtimeTools.Deno);
 
         arguments.Add("--ffmpeg-location");
-        arguments.Add(Path.GetDirectoryName(runtimeTools.FFmpeg)!);
+        arguments.Add(
+            Path.GetDirectoryName(runtimeTools.FFmpeg)!);
 
         arguments.Add("--no-playlist");
 
         var outputTemplate = playlistIndex is > 0
             ? Path.Combine(
-                folder,
+                request.Folder,
                 $"{playlistIndex.Value:D3} - %(title)s.%(ext)s")
-            : Path.Combine(folder, "%(title)s.%(ext)s");
+            : Path.Combine(
+                request.Folder,
+                "%(title)s.%(ext)s");
 
-        if (_chkArchive.Checked)
+        if (request.SkipPreviouslyDownloaded)
         {
             arguments.Add("--download-archive");
-            arguments.Add(Path.Combine(folder, "downloaded.txt"));
+            arguments.Add(
+                Path.Combine(
+                    request.Folder,
+                    "downloaded.txt"));
         }
 
-        if (_radioMp3.Checked)
+        if (request.DownloadAsMp3)
         {
             arguments.Add("-f");
             arguments.Add("ba/b");
@@ -1278,12 +1451,16 @@ internal sealed class MainForm : Form
             arguments.Add("--audio-format");
             arguments.Add("mp3");
             arguments.Add("--audio-quality");
-            arguments.Add(GetAudioQualityArgument());
+            arguments.Add(
+                GetAudioQualityArgument(
+                    request.AudioQuality));
         }
         else
         {
             arguments.Add("-f");
-            arguments.Add(GetVideoFormatArgument());
+            arguments.Add(
+                GetVideoFormatArgument(
+                    request.VideoQuality));
             arguments.Add("--merge-output-format");
             arguments.Add("mkv");
         }
@@ -1295,9 +1472,10 @@ internal sealed class MainForm : Form
         return arguments;
     }
 
-    private string GetAudioQualityArgument()
+    private static string GetAudioQualityArgument(
+        string quality)
     {
-        return _cmbAudioQuality.SelectedItem?.ToString() switch
+        return quality switch
         {
             "320 kbps" => "320K",
             "256 kbps" => "256K",
@@ -1307,15 +1485,23 @@ internal sealed class MainForm : Form
         };
     }
 
-    private string GetVideoFormatArgument()
+    private static string GetVideoFormatArgument(
+        string quality)
     {
-        return _cmbVideoQuality.SelectedItem?.ToString() switch
+        return quality switch
         {
             "480p" => "bv*[height<=480]+ba/b[height<=480]",
             "720p" => "bv*[height<=720]+ba/b[height<=720]",
             "1080p" => "bv*[height<=1080]+ba/b[height<=1080]",
             _ => "bv*+ba/b"
         };
+    }
+
+    private void UpdateQueueButtonText()
+    {
+        _btnDownload.Text = _queueWorkerRunning
+            ? "ADD TO QUEUE"
+            : "DOWNLOAD";
     }
 
     private async Task<DownloadProcessResult> RunDownloadAsync(
