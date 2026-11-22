@@ -80,6 +80,7 @@ internal sealed class MainForm : Form
         }
 
         BuildUi();
+        _downloadQueue.Changed += DownloadQueue_Changed;
         FormClosing += MainForm_FormClosing;
     }
 
@@ -354,6 +355,21 @@ internal sealed class MainForm : Form
 
         MainMenuStrip = _mainMenu;
         Controls.Add(_mainMenu);
+    }
+
+    private void DownloadQueue_Changed(
+        object? sender,
+        EventArgs e)
+    {
+        UpdateQueueButtonText();
+
+        if (_downloadQueue.IsPaused &&
+            !_queueWorkerRunning)
+        {
+            _status.Text = _downloadQueue.PendingCount > 0
+                ? $"Queue paused · {_downloadQueue.PendingCount} waiting."
+                : "Queue paused.";
+        }
     }
 
     private void OpenQueueWindow()
@@ -2009,6 +2025,8 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        _downloadQueue.Changed -= DownloadQueue_Changed;
+
         if (_queueWindow is not null &&
             !_queueWindow.IsDisposed)
         {
