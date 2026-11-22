@@ -71,6 +71,7 @@ A listed site can temporarily stop working when that website changes. Some sites
 
 **Help**
 - **Media M8 Help** — opens this page.
+- **Check for Updates** — checks GitHub Releases for a newer stable version. Media M8 never installs an update automatically.
 - **About Media M8** — shows version and project information.
 
 ## Project
