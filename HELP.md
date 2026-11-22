@@ -67,6 +67,8 @@ A listed site can temporarily stop working when that website changes. Some sites
 - **Exit** — closes Media M8.
 
 **Tools**
+- **Check download tools** — checks whether Media M8's local download tools are present and working, and reports updates where they can be compared reliably.
+- **Update download tools** — downloads fresh verified copies from the official project releases. Nothing updates automatically in the background.
 - **Open logs** — opens the folder containing Media M8 session logs.
 
 **Help**
