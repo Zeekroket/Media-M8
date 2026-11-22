@@ -63,7 +63,7 @@ internal static class RuntimeToolManager
             logger,
             progress,
             forceRefresh: false,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     public static Task RefreshAllToolsAsync(
@@ -77,7 +77,7 @@ internal static class RuntimeToolManager
             logger,
             progress,
             forceRefresh: true,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     private static async Task InstallToolsAsync(
