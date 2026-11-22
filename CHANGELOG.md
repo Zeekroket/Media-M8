@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Thumbnail image in the single-media preview when the source provides a usable image.
 - Main menu bar with File, Tools, Presets, Queue and Help headings, plus working shortcuts to the download folder, logs and Exit.
 - Dedicated user Help page, F1 shortcut and About Media M8 dialog with version, project link and third-party acknowledgements.
+- Manual Check for Updates action using the latest stable GitHub Release, with no automatic installation.
 
 ### Changed
 
