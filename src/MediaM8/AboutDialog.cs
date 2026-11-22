@@ -178,6 +178,8 @@ internal static class AboutDialog
         dialog.AcceptButton = closeButton;
         dialog.CancelButton = closeButton;
 
+        ThemeManager.Apply(dialog);
+
         dialog.ShowDialog(owner);
 
         logo.Image = null;
