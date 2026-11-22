@@ -6,9 +6,11 @@
 
 Media M8 is in early development. No public release has been published yet.
 
+The original PowerShell implementation served as the proof of concept. The active application is now a C#/.NET Windows Forms app.
+
 ## Features
 
-The current prototype includes:
+The current application includes:
 
 - URL-based media downloads
 - MP3 and video output modes
@@ -19,8 +21,10 @@ The current prototype includes:
 - Selectable output folders
 - Optional opening of the output folder after completion
 - Live process output in the application
+- Automatic setup of required portable runtime tools
+- Session logging under `logs/`
 
-## Dependencies
+## Runtime dependencies
 
 Media M8 uses separate third-party tools for download and media processing:
 
@@ -28,15 +32,33 @@ Media M8 uses separate third-party tools for download and media processing:
 - [FFmpeg](https://ffmpeg.org/) and ffprobe
 - [Deno](https://deno.com/)
 
+Media M8 keeps these tools in its local `tools/` directory. If they are missing, the application can download them from the official project releases and verify their SHA-256 checksums before using them.
+
 These projects are not part of Media M8 and remain subject to their own licenses and distribution terms.
 
-The long-term goal is to make dependency setup straightforward for end users while keeping the external tools clearly separated from the Media M8 application.
+## Application runtime
+
+Media M8 is built as a self-contained .NET 10 Windows application for x64 Windows.
+
+The published `MediaM8.exe` does not require PowerShell and does not require a separately installed .NET runtime on the end user's computer.
 
 ## Development
 
-The repository is currently being prepared for the first public development release.
+Source code lives in `src/MediaM8/`. Build and packaging helpers live in `scripts/`.
 
-Source code lives in `src/`. Build and packaging helpers live in `scripts/`. The current Windows launcher is a small native x64 executable that starts the adjacent `MediaM8.ps1` without opening a console window.
+Building requires the .NET 10 SDK.
+
+```powershell
+.\scripts\build.ps1
+```
+
+To build and sign with the configured development code-signing certificate:
+
+```powershell
+.\scripts\build.ps1 -Sign
+```
+
+The PowerShell scripts under `scripts/` are developer build helpers only; PowerShell is not part of the Media M8 application runtime.
 
 Versioning follows [Semantic Versioning](https://semver.org/):
 
