@@ -1,0 +1,32 @@
+# Build output
+build/
+dist/
+out/
+release/
+*.zip
+
+# Downloaded third-party tools
+tools/*.exe
+tools/*.dll
+tools/*.zip
+
+# Signing material and private keys
+*.pfx
+*.p12
+*.key
+*.pem
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# IDE / editor
+.vscode/
+.idea/
