@@ -186,22 +186,82 @@ function Install-MediaM8RuntimeTools {
         }
     } -ArgumentList $ToolsDirectory
 
-    try {
-        while ($job.State -eq 'Running') {
-            Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object { Add-LogLine ([string]$_) }
-            [System.Windows.Forms.Application]::DoEvents()
-            Start-Sleep -Milliseconds 100
+    $installState = [pscustomobject]@{
+        Failure = $null
+    }
+
+    $installDialog = New-Object System.Windows.Forms.Form
+    $installDialog.Text = 'Installing required tools'
+    $installDialog.StartPosition = 'CenterParent'
+    $installDialog.FormBorderStyle = 'FixedDialog'
+    $installDialog.MaximizeBox = $false
+    $installDialog.MinimizeBox = $false
+    $installDialog.ControlBox = $false
+    $installDialog.ShowInTaskbar = $false
+    $installDialog.ClientSize = New-Object System.Drawing.Size(460, 120)
+    $installDialog.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+
+    $progressLabel = New-Object System.Windows.Forms.Label
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 18)
+    $progressLabel.Size = New-Object System.Drawing.Size(420, 42)
+    $progressLabel.Text = 'Installing required tools...'
+    $installDialog.Controls.Add($progressLabel)
+
+    $progressBar = New-Object System.Windows.Forms.ProgressBar
+    $progressBar.Location = New-Object System.Drawing.Point(20, 72)
+    $progressBar.Size = New-Object System.Drawing.Size(420, 20)
+    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+    $progressBar.MarqueeAnimationSpeed = 30
+    $installDialog.Controls.Add($progressBar)
+
+    $installTimer = New-Object System.Windows.Forms.Timer
+    $installTimer.Interval = 200
+    $installTimer.Add_Tick({
+        Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object {
+            $line = [string]$_
+            Add-LogLine $line
+            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                $progressLabel.Text = $line
+            }
         }
 
-        Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object { Add-LogLine ([string]$_) }
+        if ($job.State -in @('Completed', 'Failed', 'Stopped')) {
+            $installTimer.Stop()
 
-        if ($job.State -ne 'Completed') {
-            $reason = $job.ChildJobs[0].JobStateInfo.Reason
-            if ($reason) { throw $reason.Message }
-            throw 'Tool installation failed.'
+            Receive-Job -Job $job -ErrorAction SilentlyContinue | ForEach-Object {
+                $line = [string]$_
+                Add-LogLine $line
+                if (-not [string]::IsNullOrWhiteSpace($line)) {
+                    $progressLabel.Text = $line
+                }
+            }
+
+            if ($job.State -ne 'Completed') {
+                $reason = $job.ChildJobs[0].JobStateInfo.Reason
+                if ($reason) {
+                    $installState.Failure = $reason.Message
+                }
+                else {
+                    $installState.Failure = 'Tool installation failed.'
+                }
+            }
+
+            $installDialog.Close()
+        }
+    })
+
+    try {
+        $installTimer.Start()
+        [void]$installDialog.ShowDialog($form)
+
+        if ($installState.Failure) {
+            throw $installState.Failure
         }
     }
     finally {
+        $installTimer.Stop()
+        $installTimer.Dispose()
+        $installDialog.Dispose()
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
         Set-UiBusy $false
     }
