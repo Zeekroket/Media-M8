@@ -60,13 +60,40 @@ internal static class DownloadProgressParser
                 ? null
                 : (int?)Math.Max(0, (int)Math.Round(etaValue.Value));
 
+            var fragmentIndex = GetInt64(progress, "fragment_index");
+            var fragmentCount = GetInt64(progress, "fragment_count");
+
             double? percentage = null;
-            if (downloadedBytes is >= 0 && totalBytes is > 0)
+
+            if (status.Equals("finished", StringComparison.OrdinalIgnoreCase))
+            {
+                percentage = 100d;
+            }
+            else if (downloadedBytes is >= 0 && totalBytes is > 0)
             {
                 percentage = Math.Clamp(
                     downloadedBytes.Value * 100d / totalBytes.Value,
                     0d,
                     100d);
+            }
+            else if (fragmentIndex is >= 0 && fragmentCount is > 0)
+            {
+                percentage = Math.Clamp(
+                    fragmentIndex.Value * 100d / fragmentCount.Value,
+                    0d,
+                    100d);
+            }
+            else
+            {
+                // yt-dlp currently exposes this computed value in %(progress)j.
+                // It is only a fallback; public byte/fragment fields above remain
+                // the preferred source when available.
+                percentage = GetDouble(progress, "_percent");
+
+                if (percentage is not null)
+                {
+                    percentage = Math.Clamp(percentage.Value, 0d, 100d);
+                }
             }
 
             var phase = kind.Equals(
