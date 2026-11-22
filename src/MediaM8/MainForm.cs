@@ -446,7 +446,10 @@ internal sealed class MainForm : Form
             "--progress-template",
             $"download:{DownloadProgressParser.Marker}download|%(progress)j",
             "--progress-template",
-            $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j"
+            $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j",
+            "--print",
+            $"before_dl:{DownloadProgressParser.ItemMarker}%(playlist_index)s|%(playlist_count)s",
+            "--no-quiet"
         };
 
         if (IsYouTubeUrl(url))
@@ -593,6 +596,15 @@ internal sealed class MainForm : Form
 
     private void HandleProcessOutput(string line)
     {
+        if (DownloadProgressParser.TryParseItemStart(
+                line,
+                out var playlistIndex,
+                out var playlistCount))
+        {
+            SetPreparingItem(playlistIndex, playlistCount);
+            return;
+        }
+
         if (DownloadProgressParser.TryParse(line, out var snapshot) &&
             snapshot is not null)
         {
@@ -601,6 +613,53 @@ internal sealed class MainForm : Form
         }
 
         AddUiLog(line);
+    }
+
+    private void SetPreparingItem(int? playlistIndex, int? playlistCount)
+    {
+        var snapshot = new DownloadProgressSnapshot(
+            DownloadPhase.Preparing,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "preparing");
+
+        _currentProgress = snapshot;
+
+        var itemText =
+            playlistIndex is > 0 && playlistCount is > 0
+                ? $"item {playlistIndex} of {playlistCount}"
+                : "next item";
+
+        _logger.Write(
+            $"phase=Preparing; status=preparing; {itemText}",
+            "PROGRESS");
+
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        void Render()
+        {
+            _progressBar.Style = ProgressBarStyle.Marquee;
+            _progressBar.MarqueeAnimationSpeed = 30;
+            _status.Text =
+                playlistIndex is > 0 && playlistCount is > 0
+                    ? $"Preparing item {playlistIndex} of {playlistCount}..."
+                    : "Preparing download...";
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke((Action)Render);
+        }
+        else
+        {
+            Render();
+        }
     }
 
     private void SetDownloadProgress(DownloadProgressSnapshot snapshot)
