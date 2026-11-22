@@ -12,6 +12,7 @@ internal sealed class MainForm : Form
 
     private readonly SessionLogger _logger;
 
+    private readonly MenuStrip _mainMenu = new();
     private readonly TextBox _txtUrl = new();
     private readonly GroupBox _previewGroup = new();
     private readonly PictureBox _previewThumbnail = new();
@@ -54,8 +55,8 @@ internal sealed class MainForm : Form
         Text = $"{AppInfo.Name} {AppInfo.Version}";
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.None;
-        Size = new Size(780, 690);
-        MinimumSize = new Size(780, 690);
+        Size = new Size(780, 714);
+        MinimumSize = new Size(780, 714);
         Font = new Font("Segoe UI", 9f);
 
         try
@@ -77,15 +78,17 @@ internal sealed class MainForm : Form
 
     private void BuildUi()
     {
-        Controls.Add(NewLabel("Media URL", 20, 20));
+        BuildMainMenu();
 
-        _txtUrl.Location = new Point(20, 43);
+        Controls.Add(NewLabel("Media URL", 20, 44));
+
+        _txtUrl.Location = new Point(20, 67);
         _txtUrl.Size = new Size(720, 25);
         _txtUrl.TextChanged += UrlTextBox_TextChanged;
         Controls.Add(_txtUrl);
 
         _previewGroup.Text = "Preview";
-        _previewGroup.Location = new Point(20, 78);
+        _previewGroup.Location = new Point(20, 102);
         _previewGroup.Size = new Size(720, 62);
         Controls.Add(_previewGroup);
 
@@ -106,7 +109,7 @@ internal sealed class MainForm : Form
         _previewInfo.AutoEllipsis = true;
         _previewGroup.Controls.Add(_previewInfo);
 
-        var groupType = NewGroupBox("Download as", 20, 150, 300, 75);
+        var groupType = NewGroupBox("Download as", 20, 174, 300, 75);
         Controls.Add(groupType);
 
         _radioMp3.Text = "MP3";
@@ -120,7 +123,7 @@ internal sealed class MainForm : Form
         _radioVideo.AutoSize = true;
         groupType.Controls.Add(_radioVideo);
 
-        var groupVideoQuality = NewGroupBox("Video quality", 340, 150, 190, 75);
+        var groupVideoQuality = NewGroupBox("Video quality", 340, 174, 190, 75);
         Controls.Add(groupVideoQuality);
 
         _cmbVideoQuality.Location = new Point(20, 29);
@@ -131,7 +134,7 @@ internal sealed class MainForm : Form
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
 
-        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 150, 190, 75);
+        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 174, 190, 75);
         Controls.Add(groupAudioQuality);
 
         _cmbAudioQuality.Location = new Point(20, 29);
@@ -145,9 +148,9 @@ internal sealed class MainForm : Form
         _radioMp3.CheckedChanged += (_, _) => UpdateQualityControls();
         _radioVideo.CheckedChanged += (_, _) => UpdateQualityControls();
 
-        Controls.Add(NewLabel("Save to", 20, 245));
+        Controls.Add(NewLabel("Save to", 20, 269));
 
-        _txtFolder.Location = new Point(20, 268);
+        _txtFolder.Location = new Point(20, 292);
         _txtFolder.Size = new Size(625, 25);
         _txtFolder.Text = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -156,38 +159,38 @@ internal sealed class MainForm : Form
         Controls.Add(_txtFolder);
 
         _btnBrowse.Text = "Browse...";
-        _btnBrowse.Location = new Point(655, 266);
+        _btnBrowse.Location = new Point(655, 290);
         _btnBrowse.Size = new Size(85, 29);
         _btnBrowse.Click += BrowseButton_Click;
         Controls.Add(_btnBrowse);
 
         _chkPlaylist.Text = "Download playlist";
-        _chkPlaylist.Location = new Point(20, 315);
+        _chkPlaylist.Location = new Point(20, 339);
         _chkPlaylist.AutoSize = true;
         _chkPlaylist.Checked = true;
         _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
         Controls.Add(_chkPlaylist);
 
         _chkArchive.Text = "Skip previously downloaded items (downloaded.txt)";
-        _chkArchive.Location = new Point(200, 315);
+        _chkArchive.Location = new Point(200, 339);
         _chkArchive.AutoSize = true;
         _chkArchive.Checked = true;
         Controls.Add(_chkArchive);
 
         _chkOpenFolder.Text = "Open folder when finished";
-        _chkOpenFolder.Location = new Point(560, 315);
+        _chkOpenFolder.Location = new Point(560, 339);
         _chkOpenFolder.AutoSize = true;
         Controls.Add(_chkOpenFolder);
 
         _btnDownload.Text = "DOWNLOAD";
-        _btnDownload.Location = new Point(20, 350);
+        _btnDownload.Location = new Point(20, 374);
         _btnDownload.Size = new Size(580, 42);
         _btnDownload.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
         _btnDownload.Click += DownloadButton_Click;
         Controls.Add(_btnDownload);
 
         _btnStop.Text = "STOP";
-        _btnStop.Location = new Point(610, 350);
+        _btnStop.Location = new Point(610, 374);
         _btnStop.Size = new Size(130, 42);
         _btnStop.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
         _btnStop.Visible = true;
@@ -196,9 +199,9 @@ internal sealed class MainForm : Form
         Controls.Add(_btnStop);
         _btnStop.BringToFront();
 
-        Controls.Add(NewLabel("Log", 20, 410));
+        Controls.Add(NewLabel("Log", 20, 434));
 
-        _txtLog.Location = new Point(20, 433);
+        _txtLog.Location = new Point(20, 457);
         _txtLog.Size = new Size(720, 160);
         _txtLog.Multiline = true;
         _txtLog.ScrollBars = ScrollBars.Vertical;
@@ -207,7 +210,7 @@ internal sealed class MainForm : Form
         _txtLog.Font = new Font("Consolas", 9f);
         Controls.Add(_txtLog);
 
-        _progressBar.Location = new Point(20, 607);
+        _progressBar.Location = new Point(20, 631);
         _progressBar.Size = new Size(720, 18);
         _progressBar.Minimum = 0;
         _progressBar.Maximum = 100;
@@ -216,10 +219,120 @@ internal sealed class MainForm : Form
         Controls.Add(_progressBar);
 
         _status.Text = "Ready.";
-        _status.Location = new Point(20, 631);
+        _status.Location = new Point(20, 655);
         _status.Size = new Size(720, 20);
         _status.AutoEllipsis = true;
         Controls.Add(_status);
+    }
+
+    private void BuildMainMenu()
+    {
+        _mainMenu.Dock = DockStyle.Top;
+
+        var fileMenu = new ToolStripMenuItem("&File");
+        var openDownloadFolderItem = new ToolStripMenuItem(
+            "Open download folder",
+            null,
+            (_, _) => OpenDownloadFolder());
+        var exitItem = new ToolStripMenuItem(
+            "Exit",
+            null,
+            (_, _) => Close());
+
+        fileMenu.DropDownItems.Add(openDownloadFolderItem);
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(exitItem);
+
+        var toolsMenu = new ToolStripMenuItem("&Tools");
+        var openLogsItem = new ToolStripMenuItem(
+            "Open logs",
+            null,
+            (_, _) => OpenLogsFolder());
+        toolsMenu.DropDownItems.Add(openLogsItem);
+
+        var presetsMenu = new ToolStripMenuItem("&Presets");
+        var queueMenu = new ToolStripMenuItem("&Queue");
+        var helpMenu = new ToolStripMenuItem("&Help");
+
+        _mainMenu.Items.AddRange(
+            new ToolStripItem[]
+            {
+                fileMenu,
+                toolsMenu,
+                presetsMenu,
+                queueMenu,
+                helpMenu
+            });
+
+        MainMenuStrip = _mainMenu;
+        Controls.Add(_mainMenu);
+    }
+
+    private void OpenDownloadFolder()
+    {
+        var folder = _txtFolder.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            MessageBox.Show(
+                this,
+                "Choose a download folder first.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(folder);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = folder,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Could not open download folder: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not open the download folder.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void OpenLogsFolder()
+    {
+        var logsFolder = Path.Combine(AppContext.BaseDirectory, "logs");
+
+        try
+        {
+            Directory.CreateDirectory(logsFolder);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logsFolder,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Could not open logs folder: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not open the logs folder.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     private static Label NewLabel(string text, int x, int y)
