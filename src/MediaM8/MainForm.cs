@@ -20,11 +20,13 @@ internal sealed class MainForm : Form
     private readonly CheckBox _chkOpenFolder = new();
     private readonly Button _btnBrowse = new();
     private readonly Button _btnDownload = new();
+    private readonly Button _btnStop = new();
     private readonly TextBox _txtLog = new();
     private readonly ProgressBar _progressBar = new();
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private bool _stopRequested;
     private int _currentItemIndex = 1;
     private int _currentItemCount = 1;
     private DownloadProgressSnapshot _currentProgress = new(
@@ -152,6 +154,16 @@ internal sealed class MainForm : Form
         _btnDownload.Click += DownloadButton_Click;
         Controls.Add(_btnDownload);
 
+        _btnStop.Text = "STOP";
+        _btnStop.Location = new Point(610, 290);
+        _btnStop.Size = new Size(130, 42);
+        _btnStop.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+        _btnStop.Visible = false;
+        _btnStop.Enabled = false;
+        _btnStop.Click += StopButton_Click;
+        Controls.Add(_btnStop);
+        _btnStop.BringToFront();
+
         Controls.Add(NewLabel("Log", 20, 350));
 
         _txtLog.Location = new Point(20, 373);
@@ -218,6 +230,33 @@ internal sealed class MainForm : Form
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
             _txtFolder.Text = dialog.SelectedPath;
+        }
+    }
+
+    private void StopButton_Click(object? sender, EventArgs e)
+    {
+        if (_downloadProcess is null || _stopRequested)
+        {
+            return;
+        }
+
+        _stopRequested = true;
+        _btnStop.Enabled = false;
+        _status.Text = "Stopping download...";
+        _logger.Write("User requested download stop.", "UI");
+
+        try
+        {
+            if (!_downloadProcess.HasExited)
+            {
+                _downloadProcess.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Could not stop the active download process: {ex.Message}",
+                "ERROR");
         }
     }
 
@@ -374,6 +413,7 @@ internal sealed class MainForm : Form
         AddUiLog($"Open folder when finished: {(_chkOpenFolder.Checked ? "yes" : "no")}");
         AddUiLog(string.Empty);
 
+        _stopRequested = false;
         SetUiBusy(true);
         SetDownloadProgress(new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
@@ -420,6 +460,12 @@ internal sealed class MainForm : Form
                     runtimeTools.YtDlp,
                     arguments);
 
+                if (_stopRequested)
+                {
+                    throw new OperationCanceledException(
+                        "The download was stopped by the user.");
+                }
+
                 if (exitCode != 0)
                 {
                     throw new InvalidOperationException(
@@ -449,6 +495,17 @@ internal sealed class MainForm : Form
                 });
             }
         }
+        catch (OperationCanceledException) when (_stopRequested)
+        {
+            AddUiLog(string.Empty);
+            AddUiLog("Download stopped.");
+            _logger.Write("Download stopped by user.", "UI");
+
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Value = 0;
+            _status.Text = "Download stopped.";
+        }
         catch (Exception ex)
         {
             AddUiLog(string.Empty);
@@ -458,8 +515,10 @@ internal sealed class MainForm : Form
         }
         finally
         {
+            SetStopAvailable(false);
             _downloadProcess?.Dispose();
             _downloadProcess = null;
+            _stopRequested = false;
             SetUiBusy(false);
         }
     }
@@ -606,6 +665,7 @@ internal sealed class MainForm : Form
         }
 
         _downloadProcess = process;
+        SetStopAvailable(true);
         _logger.Write($"yt-dlp process started with id {process.Id}.");
 
         process.BeginOutputReadLine();
@@ -614,8 +674,42 @@ internal sealed class MainForm : Form
         await process.WaitForExitAsync();
         process.WaitForExit();
 
+        SetStopAvailable(false);
         _logger.Write($"yt-dlp process exited with code {process.ExitCode}.");
         return process.ExitCode;
+    }
+
+    private void SetStopAvailable(bool available)
+    {
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        void Render()
+        {
+            _btnStop.Visible = available;
+            _btnStop.Enabled = available && !_stopRequested;
+
+            if (available)
+            {
+                _btnDownload.Size = new Size(580, 42);
+                _btnStop.BringToFront();
+            }
+            else
+            {
+                _btnDownload.Size = new Size(720, 42);
+            }
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke((Action)Render);
+        }
+        else
+        {
+            Render();
+        }
     }
 
     private void HandleProcessOutput(string line)
