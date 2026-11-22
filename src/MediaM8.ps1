@@ -32,7 +32,8 @@ $script:openFolderWhenDone = $false
 function Find-Executable {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [string[]]$SearchDirectories = @()
+        [string[]]$SearchDirectories = @(),
+        [switch]$AllowPathLookup
     )
 
     foreach ($directory in $SearchDirectories) {
@@ -43,8 +44,11 @@ function Find-Executable {
         }
     }
 
-    $command = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
+    if ($AllowPathLookup) {
+        $command = Get-Command $Name -ErrorAction SilentlyContinue
+        if ($command) { return $command.Source }
+    }
+
     return $null
 }
 
