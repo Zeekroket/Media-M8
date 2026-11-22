@@ -21,6 +21,7 @@ internal sealed class MainForm : Form
     private readonly Button _btnBrowse = new();
     private readonly Button _btnDownload = new();
     private readonly TextBox _txtLog = new();
+    private readonly ProgressBar _progressBar = new();
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
@@ -160,9 +161,18 @@ internal sealed class MainForm : Form
         _txtLog.Font = new Font("Consolas", 9f);
         Controls.Add(_txtLog);
 
+        _progressBar.Location = new Point(20, 607);
+        _progressBar.Size = new Size(720, 18);
+        _progressBar.Minimum = 0;
+        _progressBar.Maximum = 100;
+        _progressBar.Value = 0;
+        _progressBar.Style = ProgressBarStyle.Continuous;
+        Controls.Add(_progressBar);
+
         _status.Text = "Ready.";
-        _status.Location = new Point(20, 610);
-        _status.AutoSize = true;
+        _status.Location = new Point(20, 631);
+        _status.Size = new Size(720, 20);
+        _status.AutoEllipsis = true;
         Controls.Add(_status);
     }
 
@@ -606,6 +616,120 @@ internal sealed class MainForm : Form
             $"speed_bytes_per_second={FormatNumber(snapshot.SpeedBytesPerSecond)}; " +
             $"eta_seconds={FormatNumber(snapshot.EtaSeconds)}",
             "PROGRESS");
+
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => RenderDownloadProgress(snapshot)));
+            return;
+        }
+
+        RenderDownloadProgress(snapshot);
+    }
+
+    private void RenderDownloadProgress(DownloadProgressSnapshot snapshot)
+    {
+        switch (snapshot.Phase)
+        {
+            case DownloadPhase.Preparing:
+                _progressBar.Style = ProgressBarStyle.Marquee;
+                _progressBar.MarqueeAnimationSpeed = 30;
+                _status.Text = "Preparing download...";
+                break;
+
+            case DownloadPhase.Downloading:
+                if (snapshot.Percentage is not null)
+                {
+                    _progressBar.Style = ProgressBarStyle.Continuous;
+                    _progressBar.MarqueeAnimationSpeed = 0;
+                    _progressBar.Value = Math.Clamp(
+                        (int)Math.Round(snapshot.Percentage.Value),
+                        _progressBar.Minimum,
+                        _progressBar.Maximum);
+                }
+                else
+                {
+                    _progressBar.Style = ProgressBarStyle.Marquee;
+                    _progressBar.MarqueeAnimationSpeed = 30;
+                }
+
+                _status.Text = BuildDownloadStatusText(snapshot);
+                break;
+
+            case DownloadPhase.Processing:
+                _progressBar.Style = ProgressBarStyle.Marquee;
+                _progressBar.MarqueeAnimationSpeed = 30;
+                _status.Text = "Processing download...";
+                break;
+
+            case DownloadPhase.Completed:
+                _progressBar.Style = ProgressBarStyle.Continuous;
+                _progressBar.MarqueeAnimationSpeed = 0;
+                _progressBar.Value = 100;
+                _status.Text = "Download completed.";
+                break;
+        }
+    }
+
+    private static string BuildDownloadStatusText(DownloadProgressSnapshot snapshot)
+    {
+        var parts = new List<string> { "Downloading" };
+
+        if (snapshot.Percentage is not null)
+        {
+            parts.Add($"{snapshot.Percentage.Value:0}%");
+        }
+
+        if (snapshot.SpeedBytesPerSecond is > 0)
+        {
+            parts.Add($"{FormatSpeed(snapshot.SpeedBytesPerSecond.Value)}");
+        }
+
+        if (snapshot.EtaSeconds is >= 0)
+        {
+            parts.Add($"about {FormatEta(snapshot.EtaSeconds.Value)} remaining");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatSpeed(double bytesPerSecond)
+    {
+        const double kilo = 1024d;
+        const double mega = kilo * 1024d;
+
+        if (bytesPerSecond >= mega)
+        {
+            return $"{bytesPerSecond / mega:0.0} MB/s";
+        }
+
+        if (bytesPerSecond >= kilo)
+        {
+            return $"{bytesPerSecond / kilo:0} KB/s";
+        }
+
+        return $"{bytesPerSecond:0} B/s";
+    }
+
+    private static string FormatEta(int seconds)
+    {
+        if (seconds < 60)
+        {
+            return seconds <= 1 ? "1 second" : $"{seconds} seconds";
+        }
+
+        if (seconds < 3600)
+        {
+            var minutes = Math.Max(1, (int)Math.Ceiling(seconds / 60d));
+            return minutes == 1 ? "1 minute" : $"{minutes} minutes";
+        }
+
+        var hours = Math.Max(1, (int)Math.Ceiling(seconds / 3600d));
+        return hours == 1 ? "1 hour" : $"{hours} hours";
     }
 
     private static string FormatNumber<T>(T? value)
