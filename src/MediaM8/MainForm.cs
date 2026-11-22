@@ -326,6 +326,7 @@ internal sealed class MainForm : Form
         _previewThumbnail.Image = null;
         _previewThumbnail.Visible = false;
         oldImage?.Dispose();
+        SetPreviewTextLayout(thumbnailVisible: false);
     }
 
     private void ShowMediaPreview(MediaPreviewInfo preview)
@@ -393,6 +394,7 @@ internal sealed class MainForm : Form
             var oldImage = _previewThumbnail.Image;
             _previewThumbnail.Image = thumbnailImage;
             _previewThumbnail.Visible = true;
+            SetPreviewTextLayout(thumbnailVisible: true);
             oldImage?.Dispose();
         }
         catch (OperationCanceledException)
@@ -404,6 +406,24 @@ internal sealed class MainForm : Form
             _logger.Write(
                 $"Preview thumbnail unavailable: {ex.Message}",
                 "PREVIEW");
+        }
+    }
+
+    private void SetPreviewTextLayout(bool thumbnailVisible)
+    {
+        if (thumbnailVisible)
+        {
+            _previewTitle.Location = new Point(100, 18);
+            _previewTitle.Size = new Size(605, 20);
+            _previewInfo.Location = new Point(100, 38);
+            _previewInfo.Size = new Size(605, 18);
+        }
+        else
+        {
+            _previewTitle.Location = new Point(15, 18);
+            _previewTitle.Size = new Size(690, 20);
+            _previewInfo.Location = new Point(15, 38);
+            _previewInfo.Size = new Size(690, 18);
         }
     }
 
