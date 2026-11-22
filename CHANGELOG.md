@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Download tool health check and manual verified refresh action for yt-dlp, FFmpeg/ffprobe and Deno.
 - Simple built-in presets for MP3 Best, MP3 320 kbps, Video 1080p and Video Best.
 - Session-only single-worker download queue with per-item setting snapshots and automatic next-item processing.
+- Queue window with live item states, remove-pending, clear-finished and Pause/Resume Queue controls.
 
 ### Changed
 
