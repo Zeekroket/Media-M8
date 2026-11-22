@@ -16,6 +16,7 @@ internal static class MediaPreviewLoader
     public static async Task<MediaPreviewInfo> LoadAsync(
         string ytDlpPath,
         string sourceUrl,
+        bool downloadPlaylist,
         bool isYouTube,
         string denoPath,
         CancellationToken cancellationToken)
@@ -24,7 +25,7 @@ internal static class MediaPreviewLoader
         {
             "--dump-single-json",
             "--flat-playlist",
-            "--yes-playlist",
+            downloadPlaylist ? "--yes-playlist" : "--no-playlist",
             "--no-warnings"
         };
 
