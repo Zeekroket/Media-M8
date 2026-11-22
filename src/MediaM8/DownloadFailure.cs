@@ -1,5 +1,9 @@
 namespace MediaM8;
 
+internal sealed record DownloadProcessResult(
+    int ExitCode,
+    string TechnicalDetails);
+
 internal sealed class DownloadFailureException : Exception
 {
     public DownloadFailureException(
