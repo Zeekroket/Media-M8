@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Native asynchronous runtime tool installation for yt-dlp, FFmpeg, ffprobe and Deno with SHA-256 verification.
 - Persistent per-session diagnostic logging under `logs/`.
 - Dedicated Windows AppUserModelID so the Media M8 window has its own taskbar identity.
+- Machine-readable yt-dlp progress tracking for download percentage, byte counts, speed, ETA and processing phase.
 
 ### Changed
 
