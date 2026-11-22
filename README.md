@@ -1,28 +1,56 @@
 # Media M8
 
-**Media M8** *(pronounced “Media Mate”)* is a lightweight Windows GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp), designed to make common media download tasks easier without requiring users to work directly with long command-line commands.
+**Media M8** *(pronounced “Media Mate”)* is a lightweight Windows GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp), designed to make common media download tasks easier without requiring users to work directly with command-line tools.
+
+The core workflow is intentionally simple:
+
+**Paste a link → choose MP3 or video → choose quality → Download.**
 
 ## Status
 
-Media M8 is in early development. No public release has been published yet.
+Current version: **0.1.0**
 
-The original PowerShell implementation served as the proof of concept. The active application is now a C#/.NET Windows Forms app.
+Media M8 is under active development and should be considered pre-1.0 software.
+
+Published builds and release notes are available on the [Releases](https://github.com/Zeekroket/Media-M8/releases) page.
 
 ## Features
 
-The current application includes:
+Media M8 currently includes:
 
-- URL-based media downloads
-- MP3 and video output modes
-- Selectable MP3 quality
-- Selectable video quality
-- Playlist support
+- URL-based media downloads from sites supported by yt-dlp
+- Automatic media preview with title and available metadata
+- Thumbnail preview for single media items when available
+- MP3 and MKV video output modes
+- Selectable MP3 and video quality
+- Built-in presets for common MP3 and video choices
+- Playlist preparation and sequential playlist downloading
+- Session-only single-worker download queue
+- Queue window with Pending / Downloading / Completed / Failed / Stopped states
+- Remove-pending and clear-finished queue actions
+- Pause Queue / Resume Queue without interrupting the current download
 - Download archive support to avoid duplicate downloads
-- Selectable output folders
+- Selectable output folder
 - Optional opening of the output folder after completion
-- Live process output in the application
+- Live download progress, speed and estimated time remaining
+- STOP button for the active download
+- Friendly user-facing error messages with optional technical details
 - Automatic setup of required portable runtime tools
+- Download-tool health check and manual verified tool refresh
+- Manual Media M8 update check through GitHub Releases
+- Match System, Light and Dark appearance modes
+- F1 user help and an About Media M8 screen
 - Session logging under `logs/`
+
+## Help
+
+User documentation is available in [HELP.md](HELP.md).
+
+Useful project links:
+
+- [Releases](https://github.com/Zeekroket/Media-M8/releases)
+- [Issue tracker](https://github.com/Zeekroket/Media-M8/issues)
+- [Changelog](CHANGELOG.md)
 
 ## Runtime dependencies
 
@@ -32,7 +60,7 @@ Media M8 uses separate third-party tools for download and media processing:
 - [FFmpeg](https://ffmpeg.org/) and ffprobe
 - [Deno](https://deno.com/)
 
-Media M8 keeps these tools in its local `tools/` directory. If they are missing, the application can download them from the official project releases and verify their SHA-256 checksums before using them.
+Media M8 keeps these tools in its local `tools/` directory. If they are missing, the application can download them from the configured official project release sources and verify their SHA-256 checksums before using them.
 
 These projects are not part of Media M8 and remain subject to their own licenses and distribution terms.
 
@@ -56,6 +84,12 @@ To build and sign with the configured development code-signing certificate:
 
 ```powershell
 .\scripts\build.ps1 -Sign
+```
+
+To create the versioned win-x64 release ZIP after building:
+
+```powershell
+.\scripts\package.ps1 -Version 0.1.0
 ```
 
 The PowerShell scripts under `scripts/` are developer build helpers only; PowerShell is not part of the Media M8 application runtime.
