@@ -17,6 +17,8 @@ internal sealed class MainForm : Form
     private readonly DownloadQueueModel _downloadQueue = new();
 
     private readonly MenuStrip _mainMenu = new();
+    private readonly ToolStripMenuItem _lightThemeItem = new("Light");
+    private readonly ToolStripMenuItem _darkThemeItem = new("Dark");
     private readonly TextBox _txtUrl = new();
     private readonly GroupBox _previewGroup = new();
     private readonly PictureBox _previewThumbnail = new();
@@ -81,6 +83,8 @@ internal sealed class MainForm : Form
 
         BuildUi();
         _downloadQueue.Changed += DownloadQueue_Changed;
+        ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
+        ApplyCurrentTheme();
         FormClosing += MainForm_FormClosing;
     }
 
@@ -271,9 +275,19 @@ internal sealed class MainForm : Form
             null,
             (_, _) => OpenLogsFolder());
 
+        var appearanceMenu = new ToolStripMenuItem(
+            "Appearance");
+        _lightThemeItem.Click += (_, _) =>
+            ThemeManager.SetTheme(AppTheme.Light);
+        _darkThemeItem.Click += (_, _) =>
+            ThemeManager.SetTheme(AppTheme.Dark);
+        appearanceMenu.DropDownItems.Add(_lightThemeItem);
+        appearanceMenu.DropDownItems.Add(_darkThemeItem);
+
         toolsMenu.DropDownItems.Add(checkDownloadToolsItem);
         toolsMenu.DropDownItems.Add(updateDownloadToolsItem);
         toolsMenu.DropDownItems.Add(new ToolStripSeparator());
+        toolsMenu.DropDownItems.Add(appearanceMenu);
         toolsMenu.DropDownItems.Add(openLogsItem);
 
         var presetsMenu = new ToolStripMenuItem("&Presets");
@@ -355,6 +369,28 @@ internal sealed class MainForm : Form
 
         MainMenuStrip = _mainMenu;
         Controls.Add(_mainMenu);
+    }
+
+    private void ThemeManager_ThemeChanged(
+        object? sender,
+        EventArgs e)
+    {
+        ApplyCurrentTheme();
+    }
+
+    private void ApplyCurrentTheme()
+    {
+        ThemeManager.Apply(this);
+        ThemeManager.ApplyMenu(_mainMenu);
+        ThemeManager.ApplyProgressBar(_progressBar);
+
+        _lightThemeItem.Checked =
+            ThemeManager.CurrentTheme == AppTheme.Light;
+        _darkThemeItem.Checked =
+            ThemeManager.CurrentTheme == AppTheme.Dark;
+
+        Invalidate(invalidateChildren: true);
+        Update();
     }
 
     private void DownloadQueue_Changed(
@@ -2003,6 +2039,8 @@ internal sealed class MainForm : Form
             string.Join(", ", missingTools),
             "INSTALLER");
 
+        ThemeManager.Apply(dialog);
+
         return dialog.ShowDialog(this) == DialogResult.OK;
     }
 
@@ -2071,6 +2109,7 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        ThemeManager.ThemeChanged -= ThemeManager_ThemeChanged;
         _downloadQueue.Changed -= DownloadQueue_Changed;
 
         if (_queueWindow is not null &&
