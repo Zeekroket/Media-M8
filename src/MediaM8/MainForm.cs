@@ -149,7 +149,7 @@ internal sealed class MainForm : Form
 
         _btnDownload.Text = "DOWNLOAD";
         _btnDownload.Location = new Point(20, 290);
-        _btnDownload.Size = new Size(720, 42);
+        _btnDownload.Size = new Size(580, 42);
         _btnDownload.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
         _btnDownload.Click += DownloadButton_Click;
         Controls.Add(_btnDownload);
@@ -158,7 +158,7 @@ internal sealed class MainForm : Form
         _btnStop.Location = new Point(610, 290);
         _btnStop.Size = new Size(130, 42);
         _btnStop.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-        _btnStop.Visible = false;
+        _btnStop.Visible = true;
         _btnStop.Enabled = false;
         _btnStop.Click += StopButton_Click;
         Controls.Add(_btnStop);
@@ -688,18 +688,9 @@ internal sealed class MainForm : Form
 
         void Render()
         {
-            _btnStop.Visible = available;
+            _btnStop.Visible = true;
             _btnStop.Enabled = available && !_stopRequested;
-
-            if (available)
-            {
-                _btnDownload.Size = new Size(580, 42);
-                _btnStop.BringToFront();
-            }
-            else
-            {
-                _btnDownload.Size = new Size(720, 42);
-            }
+            _btnStop.BringToFront();
         }
 
         if (InvokeRequired)
