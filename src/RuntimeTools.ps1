@@ -68,14 +68,25 @@ function Show-MediaM8InstallPrompt {
 }
 
 function Start-MediaM8RuntimeToolInstall {
-    param([Parameter(Mandatory = $true)][string]$ToolsDirectory)
+    param(
+        [Parameter(Mandatory = $true)][string]$ToolsDirectory,
+        [Parameter(Mandatory = $true)][string]$LogFile
+    )
 
     New-Item -ItemType Directory -Path $ToolsDirectory -Force | Out-Null
 
     return Start-Job -ScriptBlock {
-        param($TargetDirectory)
+        param($TargetDirectory, $DiagnosticLogFile)
 
         $ErrorActionPreference = 'Stop'
+
+        function Write-InstallerLog {
+            param([string]$Message)
+            $line = ('[{0}] INSTALLER: {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $Message)
+            Add-Content -LiteralPath $DiagnosticLogFile -Value $line -Encoding UTF8
+        }
+
+        Write-InstallerLog ('Installer job started. Target directory: ' + $TargetDirectory)
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
         function Download-File {
@@ -116,31 +127,44 @@ function Start-MediaM8RuntimeToolInstall {
         try {
             $ytDlpTarget = Join-Path $TargetDirectory 'yt-dlp.exe'
             if (-not (Test-Path -LiteralPath $ytDlpTarget)) {
+                Write-InstallerLog 'Starting yt-dlp installation.'
                 Write-Output 'Downloading yt-dlp...'
                 $ytDlpTemp = Join-Path $tempDirectory 'yt-dlp.exe'
                 $ytDlpSumsFile = Join-Path $tempDirectory 'yt-dlp-SHA2-256SUMS'
+                Write-InstallerLog 'Downloading yt-dlp checksum file.'
                 Download-File -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS' -Destination $ytDlpSumsFile
+                Write-InstallerLog 'yt-dlp checksum file downloaded.'
                 $ytDlpExpected = Get-ChecksumFromFile -Path $ytDlpSumsFile -FileName 'yt-dlp.exe'
+                Write-InstallerLog 'Downloading yt-dlp executable.'
                 Download-File -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -Destination $ytDlpTemp
+                Write-InstallerLog 'yt-dlp executable downloaded.'
                 Assert-Sha256 -Path $ytDlpTemp -ExpectedHash $ytDlpExpected -DisplayName 'yt-dlp'
                 Move-Item -LiteralPath $ytDlpTemp -Destination $ytDlpTarget -Force
+                Write-InstallerLog 'yt-dlp installed and verified.'
                 Write-Output 'yt-dlp installed and verified.'
             }
 
             $ffmpegTarget = Join-Path $TargetDirectory 'ffmpeg.exe'
             $ffprobeTarget = Join-Path $TargetDirectory 'ffprobe.exe'
             if (-not (Test-Path -LiteralPath $ffmpegTarget) -or -not (Test-Path -LiteralPath $ffprobeTarget)) {
+                Write-InstallerLog 'Starting FFmpeg/ffprobe installation.'
                 Write-Output 'Downloading FFmpeg and ffprobe...'
                 $ffmpegArchiveName = 'ffmpeg-master-latest-win64-gpl.zip'
                 $ffmpegZip = Join-Path $tempDirectory $ffmpegArchiveName
                 $ffmpegSumsFile = Join-Path $tempDirectory 'ffmpeg-checksums.sha256'
+                Write-InstallerLog 'Downloading FFmpeg checksum file.'
                 Download-File -Uri 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256' -Destination $ffmpegSumsFile
+                Write-InstallerLog 'FFmpeg checksum file downloaded.'
                 $ffmpegExpected = Get-ChecksumFromFile -Path $ffmpegSumsFile -FileName $ffmpegArchiveName
+                Write-InstallerLog 'Downloading FFmpeg archive.'
                 Download-File -Uri ('https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/' + $ffmpegArchiveName) -Destination $ffmpegZip
+                Write-InstallerLog 'FFmpeg archive downloaded.'
                 Assert-Sha256 -Path $ffmpegZip -ExpectedHash $ffmpegExpected -DisplayName 'FFmpeg archive'
 
                 $ffmpegExtract = Join-Path $tempDirectory 'ffmpeg'
+                Write-InstallerLog 'Extracting FFmpeg archive.'
                 Expand-Archive -LiteralPath $ffmpegZip -DestinationPath $ffmpegExtract -Force
+                Write-InstallerLog 'FFmpeg archive extracted.'
                 $ffmpegSource = Get-ChildItem -LiteralPath $ffmpegExtract -Filter 'ffmpeg.exe' -File -Recurse | Select-Object -First 1
                 $ffprobeSource = Get-ChildItem -LiteralPath $ffmpegExtract -Filter 'ffprobe.exe' -File -Recurse | Select-Object -First 1
                 if (-not $ffmpegSource -or -not $ffprobeSource) {
@@ -148,23 +172,29 @@ function Start-MediaM8RuntimeToolInstall {
                 }
                 Copy-Item -LiteralPath $ffmpegSource.FullName -Destination $ffmpegTarget -Force
                 Copy-Item -LiteralPath $ffprobeSource.FullName -Destination $ffprobeTarget -Force
+                Write-InstallerLog 'FFmpeg and ffprobe installed and verified.'
                 Write-Output 'FFmpeg and ffprobe installed and verified.'
             }
 
             $denoTarget = Join-Path $TargetDirectory 'deno.exe'
             if (-not (Test-Path -LiteralPath $denoTarget)) {
+                Write-InstallerLog 'Starting Deno installation.'
                 Write-Output 'Downloading Deno...'
                 $denoArchiveName = 'deno-x86_64-pc-windows-msvc.zip'
                 $denoZip = Join-Path $tempDirectory $denoArchiveName
                 $denoChecksumUri = 'https://github.com/denoland/deno/releases/latest/download/' + $denoArchiveName + '.sha256sum'
                 $denoChecksumFile = Join-Path $tempDirectory ($denoArchiveName + '.sha256sum')
+                Write-InstallerLog 'Downloading Deno checksum file.'
                 Download-File -Uri $denoChecksumUri -Destination $denoChecksumFile
+                Write-InstallerLog 'Deno checksum file downloaded.'
                 $denoChecksumText = [IO.File]::ReadAllText($denoChecksumFile)
                 $denoExpected = ([regex]::Match($denoChecksumText, '[a-fA-F0-9]{64}')).Value
                 if ([string]::IsNullOrWhiteSpace($denoExpected)) {
                     throw 'No SHA-256 checksum was found for Deno.'
                 }
+                Write-InstallerLog 'Downloading Deno archive.'
                 Download-File -Uri ('https://github.com/denoland/deno/releases/latest/download/' + $denoArchiveName) -Destination $denoZip
+                Write-InstallerLog 'Deno archive downloaded.'
                 Assert-Sha256 -Path $denoZip -ExpectedHash $denoExpected -DisplayName 'Deno archive'
 
                 $denoExtract = Join-Path $tempDirectory 'deno'
@@ -174,13 +204,20 @@ function Start-MediaM8RuntimeToolInstall {
                     throw 'Deno archive did not contain deno.exe.'
                 }
                 Copy-Item -LiteralPath $denoSource.FullName -Destination $denoTarget -Force
+                Write-InstallerLog 'Deno installed and verified.'
                 Write-Output 'Deno installed and verified.'
             }
 
+            Write-InstallerLog 'Required tools are ready.'
             Write-Output 'Required tools are ready.'
         }
+        catch {
+            Write-InstallerLog ('Installer failed: ' + $_.Exception.Message)
+            throw
+        }
         finally {
+            Write-InstallerLog 'Cleaning temporary installer directory.'
             Remove-Item -LiteralPath $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
         }
-    } -ArgumentList $ToolsDirectory
+    } -ArgumentList $ToolsDirectory, $LogFile
 }
