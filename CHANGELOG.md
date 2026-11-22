@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Reordered the quality controls to Audio quality → Video quality so they match the MP3 → Video media type order.
+- Reordered the quality controls to Audio quality → Video quality and made both quality lists run from Best to lower quality.
 
 ## [0.1.0] - 2026-11-22
 
