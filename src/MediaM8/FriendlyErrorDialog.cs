@@ -99,6 +99,8 @@ internal static class FriendlyErrorDialog
         dialog.AcceptButton = closeButton;
         dialog.CancelButton = closeButton;
 
+        ThemeManager.Apply(dialog);
+
         dialog.ShowDialog(owner);
     }
 }

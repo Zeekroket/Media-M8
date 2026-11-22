@@ -113,6 +113,8 @@ internal static class RuntimeToolHealthDialog
         dialog.AcceptButton = closeButton;
         dialog.CancelButton = closeButton;
 
+        ThemeManager.Apply(dialog);
+
         dialog.ShowDialog(owner);
     }
 

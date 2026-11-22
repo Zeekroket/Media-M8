@@ -92,6 +92,8 @@ internal static class UpdateResultDialog
         dialog.AcceptButton = releaseButton;
         dialog.CancelButton = closeButton;
 
+        ThemeManager.Apply(dialog);
+
         dialog.ShowDialog(owner);
     }
 }
