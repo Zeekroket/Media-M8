@@ -148,7 +148,7 @@ internal sealed class QueueWindow : Form
         ThemeManager.Apply(this);
 
         _items.OwnerDraw =
-            ThemeManager.CurrentTheme == AppTheme.Dark;
+            ThemeManager.IsDarkMode;
 
         _items.Invalidate();
         Invalidate(invalidateChildren: true);
