@@ -36,6 +36,8 @@ The long-term goal is to make dependency setup straightforward for end users whi
 
 The repository is currently being prepared for the first public development release.
 
+Source code lives in `src/`. Build and packaging helpers live in `scripts/`. The current Windows launcher is a small native x64 executable that starts the adjacent `MediaM8.ps1` without opening a console window.
+
 Versioning follows [Semantic Versioning](https://semver.org/):
 
 - PATCH: backwards-compatible fixes
