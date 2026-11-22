@@ -30,6 +30,20 @@ $script:runtimeInstallJob = $null
 $script:lastDownloadFolder = $null
 $script:openFolderWhenDone = $false
 
+$script:LogDirectory = Join-Path $PSScriptRoot 'logs'
+New-Item -ItemType Directory -Path $script:LogDirectory -Force | Out-Null
+$script:LogFile = Join-Path $script:LogDirectory ('MediaM8-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+
+function Write-DiagnosticLog {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $line = ('[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $Message)
+    Add-Content -LiteralPath $script:LogFile -Value $line -Encoding UTF8
+}
+
+Write-DiagnosticLog ('Media M8 ' + $script:AppVersion + ' session started.')
+Write-DiagnosticLog ('Script path: ' + $PSScriptRoot)
+
 function Find-Executable {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -218,9 +232,17 @@ $form.Controls.Add($status)
 
 function Add-LogLine {
     param([string]$Text)
+
     $txtLog.AppendText($Text + [Environment]::NewLine)
     $txtLog.SelectionStart = $txtLog.TextLength
     $txtLog.ScrollToCaret()
+
+    try {
+        Write-DiagnosticLog ('UI: ' + $Text)
+    }
+    catch {
+        # Logging must never interrupt the application.
+    }
 }
 
 function Set-UiBusy {
@@ -249,6 +271,7 @@ $installTimer.Add_Tick({
     }
 
     if ($script:runtimeInstallJob.State -in @('Completed', 'Failed', 'Stopped')) {
+        Write-DiagnosticLog ('Runtime installer job reached state: ' + $script:runtimeInstallJob.State)
         $installTimer.Stop()
 
         Receive-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue | ForEach-Object {
@@ -364,6 +387,9 @@ $btnDownload.Add_Click({
     $runtimeTools = Get-MediaM8RuntimeToolPaths -SearchDirectories $portableDirectories
     $missingTools = @(Get-MediaM8MissingRuntimeTools -ToolPaths $runtimeTools)
 
+    Write-DiagnosticLog ('Runtime detection: yt-dlp=' + [string]$runtimeTools.YtDlp + '; ffmpeg=' + [string]$runtimeTools.FFmpeg + '; ffprobe=' + [string]$runtimeTools.FFprobe + '; deno=' + [string]$runtimeTools.Deno)
+    Write-DiagnosticLog ('Missing runtime tools: ' + $(if ($missingTools.Count -gt 0) { $missingTools -join ', ' } else { 'none' }))
+
     if ($missingTools.Count -gt 0) {
         if (-not (Show-MediaM8InstallPrompt -MissingTools $missingTools -Owner $form)) {
             $status.Text = 'Required tools are missing.'
@@ -375,7 +401,9 @@ $btnDownload.Add_Click({
         Set-UiBusy $true
 
         try {
-            $script:runtimeInstallJob = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory
+            Write-DiagnosticLog 'Starting runtime installer job.'
+            $script:runtimeInstallJob = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory -LogFile $script:LogFile
+            Write-DiagnosticLog ('Runtime installer job state after start: ' + $script:runtimeInstallJob.State)
             $installTimer.Start()
         }
         catch {
@@ -510,4 +538,6 @@ $form.Add_FormClosing({
     }
 })
 
+Write-DiagnosticLog 'Entering WinForms message loop.'
 [void]$form.ShowDialog()
+Write-DiagnosticLog 'Media M8 session ended.'
