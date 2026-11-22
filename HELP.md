@@ -30,6 +30,17 @@ While it is running, paste another link and choose its settings. The button chan
 
 Media M8 downloads exactly one queue item at a time and automatically starts the next waiting item when the current one finishes.
 
+Open **Queue → Open Queue** to see the current session queue. The queue window shows each item as Pending, Downloading, Completed, Failed or Stopped.
+
+From the queue window you can:
+
+- remove a selected Pending item;
+- clear Completed, Failed and Stopped items;
+- choose **Pause Queue** to let the current download finish but prevent the next Pending item from starting;
+- choose **Resume Queue** to continue with the next Pending item.
+
+Pause Queue does not pause the download that is already running.
+
 The queue only exists for the current Media M8 session.
 
 ## Stop a download

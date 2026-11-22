@@ -39,6 +39,7 @@ internal sealed class MainForm : Form
 
     private Process? _downloadProcess;
     private CancellationTokenSource? _previewCancellation;
+    private QueueWindow? _queueWindow;
     private DownloadQueueItem? _activeQueueItem;
     private bool _queueWorkerRunning;
     private bool _stopRequested;
@@ -79,6 +80,7 @@ internal sealed class MainForm : Form
         }
 
         BuildUi();
+        _downloadQueue.Changed += DownloadQueue_Changed;
         FormClosing += MainForm_FormClosing;
     }
 
@@ -300,6 +302,12 @@ internal sealed class MainForm : Form
         presetsMenu.DropDownItems.Add(videoBestPreset);
 
         var queueMenu = new ToolStripMenuItem("&Queue");
+        var openQueueItem = new ToolStripMenuItem(
+            "Open Queue",
+            null,
+            (_, _) => OpenQueueWindow());
+        queueMenu.DropDownItems.Add(openQueueItem);
+
         var helpMenu = new ToolStripMenuItem("&Help");
 
         var helpItem = new ToolStripMenuItem(
@@ -347,6 +355,43 @@ internal sealed class MainForm : Form
 
         MainMenuStrip = _mainMenu;
         Controls.Add(_mainMenu);
+    }
+
+    private void DownloadQueue_Changed(
+        object? sender,
+        EventArgs e)
+    {
+        UpdateQueueButtonText();
+
+        if (_downloadQueue.IsPaused &&
+            !_queueWorkerRunning)
+        {
+            _status.Text = _downloadQueue.PendingCount > 0
+                ? $"Queue paused · {_downloadQueue.PendingCount} waiting."
+                : "Queue paused.";
+        }
+    }
+
+    private void OpenQueueWindow()
+    {
+        if (_queueWindow is not null &&
+            !_queueWindow.IsDisposed)
+        {
+            _queueWindow.Show();
+            _queueWindow.BringToFront();
+            return;
+        }
+
+        _queueWindow = new QueueWindow(
+            _downloadQueue,
+            ProcessDownloadQueueAsync);
+
+        _queueWindow.FormClosed += (_, _) =>
+        {
+            _queueWindow = null;
+        };
+
+        _queueWindow.Show(this);
     }
 
     protected override bool ProcessCmdKey(
@@ -1046,9 +1091,15 @@ internal sealed class MainForm : Form
 
         UpdateQueueButtonText();
 
-        if (!_queueWorkerRunning)
+        if (!_queueWorkerRunning &&
+            !_downloadQueue.IsPaused)
         {
             await ProcessDownloadQueueAsync();
+        }
+        else if (_downloadQueue.IsPaused)
+        {
+            _status.Text =
+                $"Queue paused · {_downloadQueue.PendingCount} waiting.";
         }
     }
 
@@ -1077,16 +1128,26 @@ internal sealed class MainForm : Form
             return;
         }
 
+        if (_downloadQueue.IsPaused)
+        {
+            UpdateQueueButtonText();
+            _status.Text =
+                $"Queue paused · {_downloadQueue.PendingCount} waiting.";
+            return;
+        }
+
         _queueWorkerRunning = true;
         UpdateQueueButtonText();
 
         try
         {
-            while (_downloadQueue.GetNextPending() is { } queueItem)
+            while (!_downloadQueue.IsPaused &&
+                   _downloadQueue.GetNextPending() is { } queueItem)
             {
                 _activeQueueItem = queueItem;
-                queueItem.State = DownloadQueueState.Downloading;
-                queueItem.StatusDetail = null;
+                _downloadQueue.SetState(
+                    queueItem,
+                    DownloadQueueState.Downloading);
 
                 AddUiLog(string.Empty);
                 AddUiLog(
@@ -1096,15 +1157,18 @@ internal sealed class MainForm : Form
                 var state = await ProcessQueueItemAsync(
                     queueItem.Request);
 
-                queueItem.State = state;
-
-                queueItem.StatusDetail = state switch
+                var statusDetail = state switch
                 {
                     DownloadQueueState.Completed => "Completed",
                     DownloadQueueState.Stopped => "Stopped by user",
                     DownloadQueueState.Failed => "Download failed",
                     _ => queueItem.StatusDetail
                 };
+
+                _downloadQueue.SetState(
+                    queueItem,
+                    state,
+                    statusDetail);
 
                 AddUiLog(
                     $"Queue item #{queueItem.Id}: {state}.");
@@ -1130,10 +1194,22 @@ internal sealed class MainForm : Form
                 item => item.State == DownloadQueueState.Stopped);
 
             AddUiLog(string.Empty);
-            AddUiLog(
-                $"Queue finished: {completed} completed, " +
-                $"{failed} failed, {stopped} stopped.");
-            _status.Text = "Queue finished.";
+
+            if (_downloadQueue.IsPaused &&
+                _downloadQueue.PendingCount > 0)
+            {
+                AddUiLog(
+                    $"Queue paused: {_downloadQueue.PendingCount} waiting.");
+                _status.Text =
+                    $"Queue paused · {_downloadQueue.PendingCount} waiting.";
+            }
+            else
+            {
+                AddUiLog(
+                    $"Queue finished: {completed} completed, " +
+                    $"{failed} failed, {stopped} stopped.");
+                _status.Text = "Queue finished.";
+            }
         }
     }
 
@@ -1499,9 +1575,11 @@ internal sealed class MainForm : Form
 
     private void UpdateQueueButtonText()
     {
-        _btnDownload.Text = _queueWorkerRunning
-            ? "ADD TO QUEUE"
-            : "DOWNLOAD";
+        _btnDownload.Text =
+            _queueWorkerRunning ||
+            _downloadQueue.PendingCount > 0
+                ? "ADD TO QUEUE"
+                : "DOWNLOAD";
     }
 
     private async Task<DownloadProcessResult> RunDownloadAsync(
@@ -1947,6 +2025,14 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        _downloadQueue.Changed -= DownloadQueue_Changed;
+
+        if (_queueWindow is not null &&
+            !_queueWindow.IsDisposed)
+        {
+            _queueWindow.Close();
+        }
+
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;

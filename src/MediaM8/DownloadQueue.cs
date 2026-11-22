@@ -45,7 +45,11 @@ internal sealed class DownloadQueueModel
     private readonly List<DownloadQueueItem> _items = new();
     private int _nextId = 1;
 
+    public event EventHandler? Changed;
+
     public IReadOnlyList<DownloadQueueItem> Items => _items;
+
+    public bool IsPaused { get; private set; }
 
     public int PendingCount =>
         _items.Count(item => item.State == DownloadQueueState.Pending);
@@ -57,6 +61,7 @@ internal sealed class DownloadQueueModel
             request);
 
         _items.Add(item);
+        NotifyChanged();
         return item;
     }
 
@@ -64,5 +69,64 @@ internal sealed class DownloadQueueModel
     {
         return _items.FirstOrDefault(
             item => item.State == DownloadQueueState.Pending);
+    }
+
+    public void SetState(
+        DownloadQueueItem item,
+        DownloadQueueState state,
+        string? statusDetail = null)
+    {
+        item.State = state;
+        item.StatusDetail = statusDetail;
+        NotifyChanged();
+    }
+
+    public bool RemovePending(int id)
+    {
+        var item = _items.FirstOrDefault(
+            candidate =>
+                candidate.Id == id &&
+                candidate.State == DownloadQueueState.Pending);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        _items.Remove(item);
+        NotifyChanged();
+        return true;
+    }
+
+    public int ClearFinished()
+    {
+        var removed = _items.RemoveAll(
+            item =>
+                item.State == DownloadQueueState.Completed ||
+                item.State == DownloadQueueState.Failed ||
+                item.State == DownloadQueueState.Stopped);
+
+        if (removed > 0)
+        {
+            NotifyChanged();
+        }
+
+        return removed;
+    }
+
+    public void SetPaused(bool paused)
+    {
+        if (IsPaused == paused)
+        {
+            return;
+        }
+
+        IsPaused = paused;
+        NotifyChanged();
+    }
+
+    public void NotifyChanged()
+    {
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 }
