@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -7,6 +8,7 @@ namespace MediaM8;
 
 internal enum AppTheme
 {
+    MatchSystem,
     Light,
     Dark
 }
@@ -41,33 +43,35 @@ internal static class ThemeManager
     public static AppTheme CurrentTheme { get; private set; } =
         LoadSavedTheme();
 
+    public static bool IsDarkMode => ResolveDarkMode();
+
     public static Color WindowBackColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? DarkWindow
             : LightWindow;
 
     public static Color InputBackColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? DarkInput
             : LightInput;
 
     public static Color TextColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? DarkText
             : LightText;
 
     public static Color SelectionBackColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? Color.FromArgb(62, 62, 66)
             : SystemColors.Highlight;
 
     public static Color SelectionTextColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? DarkText
             : SystemColors.HighlightText;
 
     public static Color BorderColor =>
-        CurrentTheme == AppTheme.Dark
+        IsDarkMode
             ? DarkBorder
             : SystemColors.ControlDark;
 
@@ -81,6 +85,14 @@ internal static class ThemeManager
         CurrentTheme = theme;
         SaveTheme(theme);
         ThemeChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    public static void NotifySystemThemeChanged()
+    {
+        if (CurrentTheme == AppTheme.MatchSystem)
+        {
+            ThemeChanged?.Invoke(null, EventArgs.Empty);
+        }
     }
 
     public static void Apply(Control root)
@@ -100,7 +112,7 @@ internal static class ThemeManager
 
     public static void ApplyMenu(MenuStrip menu)
     {
-        if (CurrentTheme == AppTheme.Dark)
+        if (IsDarkMode)
         {
             menu.BackColor = DarkControl;
             menu.ForeColor = DarkText;
@@ -130,7 +142,7 @@ internal static class ThemeManager
             _ = progressBar.Handle;
         }
 
-        if (CurrentTheme == AppTheme.Dark)
+        if (IsDarkMode)
         {
             _ = SetWindowTheme(
                 progressBar.Handle,
@@ -168,7 +180,7 @@ internal static class ThemeManager
 
     private static void ApplyControl(Control control)
     {
-        var dark = CurrentTheme == AppTheme.Dark;
+        var dark = IsDarkMode;
 
         switch (control)
         {
@@ -331,7 +343,7 @@ internal static class ThemeManager
         try
         {
             var enabled =
-                CurrentTheme == AppTheme.Dark
+                IsDarkMode
                     ? 1
                     : 0;
 
@@ -353,7 +365,7 @@ internal static class ThemeManager
         {
             if (!File.Exists(SettingsPath))
             {
-                return AppTheme.Light;
+                return AppTheme.MatchSystem;
             }
 
             var json = File.ReadAllText(SettingsPath);
@@ -364,11 +376,39 @@ internal static class ThemeManager
                 ignoreCase: true,
                 out var theme)
                 ? theme
-                : AppTheme.Light;
+                : AppTheme.MatchSystem;
         }
         catch
         {
-            return AppTheme.Light;
+            return AppTheme.MatchSystem;
+        }
+    }
+
+    private static bool ResolveDarkMode()
+    {
+        if (CurrentTheme == AppTheme.Dark)
+        {
+            return true;
+        }
+
+        if (CurrentTheme == AppTheme.Light)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+
+            var value = key?.GetValue("AppsUseLightTheme");
+
+            return value is int appsUseLightTheme &&
+                   appsUseLightTheme == 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 
