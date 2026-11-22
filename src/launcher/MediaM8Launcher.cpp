@@ -41,7 +41,7 @@ extern "C" __declspec(dllimport) BOOL __stdcall CreateProcessW(
     LPCWSTR, LPWSTR, LPVOID, LPVOID, BOOL, DWORD, LPVOID, LPCWSTR, STARTUPINFOW *, PROCESS_INFORMATION *
 );
 extern "C" __declspec(dllimport) BOOL __stdcall CloseHandle(HANDLE);
-extern "C" __declspec(dllimport) void __stdcall ExitProcess(DWORD);
+extern "C" __declspec(dllimport) __declspec(noreturn) void __stdcall ExitProcess(DWORD);
 
 #define CREATE_NO_WINDOW 0x08000000UL
 #define PATH_CAPACITY 4096
