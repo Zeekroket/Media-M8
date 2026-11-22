@@ -247,10 +247,28 @@ internal sealed class MainForm : Form
         fileMenu.DropDownItems.Add(exitItem);
 
         var toolsMenu = new ToolStripMenuItem("&Tools");
+        var checkDownloadToolsItem = new ToolStripMenuItem(
+            "Check download tools");
+        checkDownloadToolsItem.Click += async (_, _) =>
+        {
+            await CheckDownloadToolsAsync();
+        };
+
+        var updateDownloadToolsItem = new ToolStripMenuItem(
+            "Update download tools");
+        updateDownloadToolsItem.Click += async (_, _) =>
+        {
+            await UpdateDownloadToolsAsync();
+        };
+
         var openLogsItem = new ToolStripMenuItem(
             "Open logs",
             null,
             (_, _) => OpenLogsFolder());
+
+        toolsMenu.DropDownItems.Add(checkDownloadToolsItem);
+        toolsMenu.DropDownItems.Add(updateDownloadToolsItem);
+        toolsMenu.DropDownItems.Add(new ToolStripSeparator());
         toolsMenu.DropDownItems.Add(openLogsItem);
 
         var presetsMenu = new ToolStripMenuItem("&Presets");
@@ -315,6 +333,142 @@ internal sealed class MainForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private async Task CheckDownloadToolsAsync()
+    {
+        if (_isBusy)
+        {
+            MessageBox.Show(
+                this,
+                "Finish or stop the current download first.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var previousStatus = _status.Text;
+        _status.Text = "Checking download tools...";
+
+        try
+        {
+            var toolsDirectory = Path.Combine(
+                AppContext.BaseDirectory,
+                "tools");
+
+            var report = await RuntimeToolHealthChecker.CheckAsync(
+                toolsDirectory,
+                CancellationToken.None);
+
+            RuntimeToolHealthDialog.Show(
+                this,
+                report);
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Download tool health check failed: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not check the download tools." +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Check your internet connection and try again.",
+                "Download tool check failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _status.Text = previousStatus;
+        }
+    }
+
+    private async Task UpdateDownloadToolsAsync()
+    {
+        if (_isBusy)
+        {
+            MessageBox.Show(
+                this,
+                "Finish or stop the current download first.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var confirmation = MessageBox.Show(
+            this,
+            "Media M8 will download fresh copies of its download tools from their official project releases and verify them before use." +
+            Environment.NewLine +
+            Environment.NewLine +
+            "Continue?",
+            "Update download tools",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Information);
+
+        if (confirmation != DialogResult.OK)
+        {
+            return;
+        }
+
+        var previousStatus = _status.Text;
+        SetUiBusy(true);
+        _status.Text = "Updating download tools...";
+        AddUiLog(string.Empty);
+        AddUiLog("Updating download tools...");
+
+        try
+        {
+            var toolsDirectory = Path.Combine(
+                AppContext.BaseDirectory,
+                "tools");
+            var progress = new Progress<string>(AddUiLog);
+
+            await RuntimeToolManager.RefreshAllToolsAsync(
+                toolsDirectory,
+                _logger,
+                progress,
+                CancellationToken.None);
+
+            _status.Text = "Download tools updated.";
+
+            MessageBox.Show(
+                this,
+                "Download tools were updated and verified.",
+                "Download tools updated",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Download tool update failed: {ex}",
+                "ERROR");
+            _status.Text = "Download tool update failed.";
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not update the download tools." +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Check your internet connection and try again.",
+                "Download tool update failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetUiBusy(false);
+
+            if (_status.Text == "Download tools updated.")
+            {
+                _status.Text = previousStatus;
+            }
+        }
     }
 
     private async Task CheckForUpdatesAsync()
