@@ -60,11 +60,23 @@ internal static class UpdateResultDialog
         };
         releaseButton.Click += (_, _) =>
         {
-            Process.Start(new ProcessStartInfo
+            try
             {
-                FileName = releaseUrl,
-                UseShellExecute = true
-            });
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = releaseUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                MessageBox.Show(
+                    dialog,
+                    "Media M8 could not open the release page.",
+                    AppInfo.Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         };
         dialog.Controls.Add(releaseButton);
 
