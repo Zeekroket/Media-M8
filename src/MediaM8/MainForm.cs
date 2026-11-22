@@ -155,6 +155,7 @@ internal sealed class MainForm : Form
         _chkPlaylist.Location = new Point(20, 315);
         _chkPlaylist.AutoSize = true;
         _chkPlaylist.Checked = true;
+        _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
         Controls.Add(_chkPlaylist);
 
         _chkArchive.Text = "Skip previously downloaded items (downloaded.txt)";
@@ -274,6 +275,7 @@ internal sealed class MainForm : Form
             var preview = await MediaPreviewLoader.LoadAsync(
                 runtimeTools.YtDlp,
                 url,
+                _chkPlaylist.Checked,
                 IsYouTubeUrl(url),
                 runtimeTools.Deno,
                 cancellation.Token);
