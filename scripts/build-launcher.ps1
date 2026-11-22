@@ -40,7 +40,7 @@ function Assert-PowerShellSyntax {
 
     if ($parseErrors.Count -gt 0) {
         $messages = ($parseErrors | ForEach-Object { $_.Message }) -join '; '
-        throw "PowerShell syntax validation failed for $Path: $messages"
+        throw "PowerShell syntax validation failed for ${Path}: $messages"
     }
 }
 
