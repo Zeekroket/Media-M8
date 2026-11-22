@@ -32,6 +32,7 @@ internal sealed class MainForm : Form
 
         Text = $"{AppInfo.Name} {AppInfo.Version}";
         StartPosition = FormStartPosition.CenterScreen;
+        AutoScaleMode = AutoScaleMode.None;
         Size = new Size(780, 690);
         MinimumSize = new Size(780, 690);
         Font = new Font("Segoe UI", 9f);
