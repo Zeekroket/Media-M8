@@ -264,12 +264,29 @@ internal sealed class MainForm : Form
         {
             ShortcutKeyDisplayString = "F1"
         };
+        var checkUpdatesItem = new ToolStripMenuItem(
+            "Check for Updates");
+        checkUpdatesItem.Click += async (_, _) =>
+        {
+            checkUpdatesItem.Enabled = false;
+
+            try
+            {
+                await CheckForUpdatesAsync();
+            }
+            finally
+            {
+                checkUpdatesItem.Enabled = true;
+            }
+        };
+
         var aboutItem = new ToolStripMenuItem(
             "About Media M8",
             null,
             (_, _) => AboutDialog.Show(this));
 
         helpMenu.DropDownItems.Add(helpItem);
+        helpMenu.DropDownItems.Add(checkUpdatesItem);
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add(aboutItem);
 
@@ -298,6 +315,80 @@ internal sealed class MainForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        var previousStatus = _status.Text;
+        _status.Text = "Checking for updates...";
+
+        try
+        {
+            var result = await UpdateChecker.CheckAsync(
+                CancellationToken.None);
+
+            switch (result.Availability)
+            {
+                case UpdateAvailability.NoPublishedRelease:
+                    MessageBox.Show(
+                        this,
+                        "There is no published Media M8 release yet." +
+                        Environment.NewLine +
+                        Environment.NewLine +
+                        $"Installed version: {result.InstalledVersion}",
+                        "No published release yet",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    break;
+
+                case UpdateAvailability.UpToDate:
+                    MessageBox.Show(
+                        this,
+                        $"Media M8 {result.InstalledVersion} is up to date." +
+                        Environment.NewLine +
+                        Environment.NewLine +
+                        $"Latest stable release: {result.LatestVersion}",
+                        "Media M8 is up to date",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    break;
+
+                case UpdateAvailability.NewVersionAvailable:
+                    if (result.LatestVersion is null ||
+                        string.IsNullOrWhiteSpace(result.ReleaseUrl))
+                    {
+                        throw new InvalidOperationException(
+                            "The update result did not contain release details.");
+                    }
+
+                    UpdateResultDialog.ShowNewVersion(
+                        this,
+                        result.InstalledVersion,
+                        result.LatestVersion,
+                        result.ReleaseUrl);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Update check failed: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not check for updates." +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Check your internet connection and try again.",
+                "Update check failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _status.Text = previousStatus;
+        }
     }
 
     private void OpenHelp()
