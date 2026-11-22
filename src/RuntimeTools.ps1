@@ -97,7 +97,14 @@ function Install-MediaM8RuntimeTools {
                 }
 
                 $parts = $trimmed -split '\s+'
-                if ($parts.Count -gt 0 -and $parts[0] -match '^[a-fA-F0-9]{64}
+                if ($parts.Count -gt 0 -and $parts[0] -match '^[a-fA-F0-9]{64}$') {
+                    return $parts[0]
+                }
+            }
+
+            throw "No SHA-256 checksum was found for $FileName."
+        }
+
         function Assert-Sha256 {
             param([string]$Path, [string]$ExpectedHash, [string]$DisplayName)
 
