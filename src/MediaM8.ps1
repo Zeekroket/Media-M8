@@ -291,7 +291,7 @@ $btnDownload.Add_Click({
     }
 
     $toolsDirectory = Join-Path $PSScriptRoot 'tools'
-    $portableDirectories = @($toolsDirectory, $PSScriptRoot)
+    $portableDirectories = @($toolsDirectory)
 
     try {
         $runtimeTools = Ensure-MediaM8RuntimeTools -ToolsDirectory $toolsDirectory -SearchDirectories $portableDirectories -Owner $form
