@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Automatic text preview for pasted media links, showing title plus uploader/channel and duration or playlist item count when available.
 - Thumbnail image in the single-media preview when the source provides a usable image.
 - Main menu bar with File, Tools, Presets, Queue and Help headings, plus working shortcuts to the download folder, logs and Exit.
+- Dedicated user Help page, F1 shortcut and About Media M8 dialog with version, project link and third-party acknowledgements.
 
 ### Changed
 

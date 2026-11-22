@@ -8,6 +8,9 @@ namespace MediaM8;
 
 internal sealed class MainForm : Form
 {
+    private const string HelpUrl =
+        "https://github.com/Zeekroket/Media-M8/blob/main/HELP.md";
+
     private static readonly HttpClient ThumbnailHttpClient = new();
 
     private readonly SessionLogger _logger;
@@ -254,6 +257,22 @@ internal sealed class MainForm : Form
         var queueMenu = new ToolStripMenuItem("&Queue");
         var helpMenu = new ToolStripMenuItem("&Help");
 
+        var helpItem = new ToolStripMenuItem(
+            "Media M8 Help",
+            null,
+            (_, _) => OpenHelp())
+        {
+            ShortcutKeyDisplayString = "F1"
+        };
+        var aboutItem = new ToolStripMenuItem(
+            "About Media M8",
+            null,
+            (_, _) => AboutDialog.Show(this));
+
+        helpMenu.DropDownItems.Add(helpItem);
+        helpMenu.DropDownItems.Add(new ToolStripSeparator());
+        helpMenu.DropDownItems.Add(aboutItem);
+
         _mainMenu.Items.AddRange(
             new ToolStripItem[]
             {
@@ -266,6 +285,44 @@ internal sealed class MainForm : Form
 
         MainMenuStrip = _mainMenu;
         Controls.Add(_mainMenu);
+    }
+
+    protected override bool ProcessCmdKey(
+        ref Message msg,
+        Keys keyData)
+    {
+        if (keyData == Keys.F1)
+        {
+            OpenHelp();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private void OpenHelp()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = HelpUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Could not open Media M8 Help: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not open the Help page.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     private void OpenDownloadFolder()
