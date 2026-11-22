@@ -52,10 +52,39 @@ internal static class RuntimeToolManager
         return missing;
     }
 
-    public static async Task InstallMissingToolsAsync(
+    public static Task InstallMissingToolsAsync(
         string toolsDirectory,
         SessionLogger logger,
         IProgress<string> progress,
+        CancellationToken cancellationToken)
+    {
+        return InstallToolsAsync(
+            toolsDirectory,
+            logger,
+            progress,
+            forceRefresh: false,
+            cancellationToken);
+    }
+
+    public static Task RefreshAllToolsAsync(
+        string toolsDirectory,
+        SessionLogger logger,
+        IProgress<string> progress,
+        CancellationToken cancellationToken)
+    {
+        return InstallToolsAsync(
+            toolsDirectory,
+            logger,
+            progress,
+            forceRefresh: true,
+            cancellationToken);
+    }
+
+    private static async Task InstallToolsAsync(
+        string toolsDirectory,
+        SessionLogger logger,
+        IProgress<string> progress,
+        bool forceRefresh,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(toolsDirectory);
@@ -65,14 +94,24 @@ internal static class RuntimeToolManager
             "MediaM8-" + Guid.NewGuid().ToString("N"));
 
         Directory.CreateDirectory(tempDirectory);
-        Report(logger, progress, $"Installer started. Target directory: {toolsDirectory}");
+        Report(
+            logger,
+            progress,
+            forceRefresh
+                ? $"Tool refresh started. Target directory: {toolsDirectory}"
+                : $"Installer started. Target directory: {toolsDirectory}");
 
         try
         {
             var ytDlpTarget = Path.Combine(toolsDirectory, "yt-dlp.exe");
-            if (!File.Exists(ytDlpTarget))
+            if (forceRefresh || !File.Exists(ytDlpTarget))
             {
-                Report(logger, progress, "Starting yt-dlp installation.");
+                Report(
+                    logger,
+                    progress,
+                    forceRefresh
+                        ? "Refreshing yt-dlp."
+                        : "Starting yt-dlp installation.");
 
                 var ytDlpChecksumFile = Path.Combine(tempDirectory, "yt-dlp-SHA2-256SUMS");
                 await DownloadFileAsync(
@@ -102,9 +141,16 @@ internal static class RuntimeToolManager
             var ffmpegTarget = Path.Combine(toolsDirectory, "ffmpeg.exe");
             var ffprobeTarget = Path.Combine(toolsDirectory, "ffprobe.exe");
 
-            if (!File.Exists(ffmpegTarget) || !File.Exists(ffprobeTarget))
+            if (forceRefresh ||
+                !File.Exists(ffmpegTarget) ||
+                !File.Exists(ffprobeTarget))
             {
-                Report(logger, progress, "Starting FFmpeg/ffprobe installation.");
+                Report(
+                    logger,
+                    progress,
+                    forceRefresh
+                        ? "Refreshing FFmpeg/ffprobe."
+                        : "Starting FFmpeg/ffprobe installation.");
 
                 var checksumFile = Path.Combine(tempDirectory, "ffmpeg-checksums.sha256");
                 await DownloadFileAsync(
@@ -147,9 +193,14 @@ internal static class RuntimeToolManager
             }
 
             var denoTarget = Path.Combine(toolsDirectory, "deno.exe");
-            if (!File.Exists(denoTarget))
+            if (forceRefresh || !File.Exists(denoTarget))
             {
-                Report(logger, progress, "Starting Deno installation.");
+                Report(
+                    logger,
+                    progress,
+                    forceRefresh
+                        ? "Refreshing Deno."
+                        : "Starting Deno installation.");
 
                 var checksumFile = Path.Combine(tempDirectory, DenoArchiveName + ".sha256sum");
                 await DownloadFileAsync(
@@ -192,7 +243,12 @@ internal static class RuntimeToolManager
                 Report(logger, progress, "Deno installed and verified.");
             }
 
-            Report(logger, progress, "Required tools are ready.");
+            Report(
+                logger,
+                progress,
+                forceRefresh
+                    ? "Download tools refreshed and ready."
+                    : "Required tools are ready.");
         }
         catch (Exception ex)
         {
