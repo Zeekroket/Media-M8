@@ -71,6 +71,14 @@ A listed site can temporarily stop working when that website changes. Some sites
 - **Update download tools** — downloads fresh verified copies from the official project releases. Nothing updates automatically in the background.
 - **Open logs** — opens the folder containing Media M8 session logs.
 
+**Presets**
+- **MP3 — Best quality**
+- **MP3 — 320 kbps**
+- **Video — 1080p**
+- **Video — Best quality**
+
+Choosing a preset only updates the existing download type and quality controls. You can still change those controls manually afterwards.
+
 **Help**
 - **Media M8 Help** — opens this page.
 - **Check for Updates** — checks GitHub Releases for a newer stable version. Media M8 never installs an update automatically.

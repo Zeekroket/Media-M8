@@ -272,6 +272,30 @@ internal sealed class MainForm : Form
         toolsMenu.DropDownItems.Add(openLogsItem);
 
         var presetsMenu = new ToolStripMenuItem("&Presets");
+
+        var mp3BestPreset = new ToolStripMenuItem(
+            "MP3 — Best quality",
+            null,
+            (_, _) => ApplyPreset(downloadAsMp3: true, quality: "Best (VBR 0)"));
+        var mp3320Preset = new ToolStripMenuItem(
+            "MP3 — 320 kbps",
+            null,
+            (_, _) => ApplyPreset(downloadAsMp3: true, quality: "320 kbps"));
+        var video1080Preset = new ToolStripMenuItem(
+            "Video — 1080p",
+            null,
+            (_, _) => ApplyPreset(downloadAsMp3: false, quality: "1080p"));
+        var videoBestPreset = new ToolStripMenuItem(
+            "Video — Best quality",
+            null,
+            (_, _) => ApplyPreset(downloadAsMp3: false, quality: "Best"));
+
+        presetsMenu.DropDownItems.Add(mp3BestPreset);
+        presetsMenu.DropDownItems.Add(mp3320Preset);
+        presetsMenu.DropDownItems.Add(new ToolStripSeparator());
+        presetsMenu.DropDownItems.Add(video1080Preset);
+        presetsMenu.DropDownItems.Add(videoBestPreset);
+
         var queueMenu = new ToolStripMenuItem("&Queue");
         var helpMenu = new ToolStripMenuItem("&Help");
 
@@ -333,6 +357,35 @@ internal sealed class MainForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private void ApplyPreset(
+        bool downloadAsMp3,
+        string quality)
+    {
+        if (_isBusy)
+        {
+            MessageBox.Show(
+                this,
+                "Finish or stop the current download first.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        if (downloadAsMp3)
+        {
+            _radioMp3.Checked = true;
+            _cmbAudioQuality.SelectedItem = quality;
+        }
+        else
+        {
+            _radioVideo.Checked = true;
+            _cmbVideoQuality.SelectedItem = quality;
+        }
+
+        UpdateQualityControls();
     }
 
     private async Task CheckDownloadToolsAsync()
