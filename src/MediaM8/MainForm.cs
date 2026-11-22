@@ -143,7 +143,7 @@ internal sealed class MainForm : Form
         _cmbVideoQuality.Location = new Point(20, 29);
         _cmbVideoQuality.Size = new Size(145, 25);
         _cmbVideoQuality.DropDownStyle = ComboBoxStyle.DropDownList;
-        _cmbVideoQuality.Items.AddRange(new object[] { "480p", "720p", "1080p", "Best" });
+        _cmbVideoQuality.Items.AddRange(new object[] { "Best", "1080p", "720p", "480p" });
         _cmbVideoQuality.SelectedIndex = 0;
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
