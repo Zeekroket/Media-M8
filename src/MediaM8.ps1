@@ -26,6 +26,7 @@ namespace MediaM8
 $script:AppName = 'Media M8'
 $script:AppVersion = '0.1.0'
 $script:downloadJob = $null
+$script:runtimeInstallJob = $null
 $script:lastDownloadFolder = $null
 $script:openFolderWhenDone = $false
 
@@ -238,6 +239,69 @@ function Set-UiBusy {
     $chkOpenFolder.Enabled = -not $Busy
 }
 
+$installTimer = New-Object System.Windows.Forms.Timer
+$installTimer.Interval = 250
+$installTimer.Add_Tick({
+    if (-not $script:runtimeInstallJob) { return }
+
+    Receive-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue | ForEach-Object {
+        Add-LogLine ([string]$_)
+    }
+
+    if ($script:runtimeInstallJob.State -in @('Completed', 'Failed', 'Stopped')) {
+        $installTimer.Stop()
+
+        Receive-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue | ForEach-Object {
+            Add-LogLine ([string]$_)
+        }
+
+        $installSucceeded = ($script:runtimeInstallJob.State -eq 'Completed')
+        $failureMessage = $null
+
+        if (-not $installSucceeded) {
+            $reason = $script:runtimeInstallJob.ChildJobs[0].JobStateInfo.Reason
+            if ($reason) {
+                $failureMessage = $reason.Message
+            }
+            else {
+                $failureMessage = 'Tool installation failed.'
+            }
+        }
+
+        Remove-Job -Job $script:runtimeInstallJob -Force -ErrorAction SilentlyContinue
+        $script:runtimeInstallJob = $null
+        Set-UiBusy $false
+
+        if (-not $installSucceeded) {
+            Add-LogLine ('Tool installation failed: ' + $failureMessage)
+            $status.Text = 'Tool installation failed.'
+            [System.Windows.Forms.MessageBox]::Show(
+                "Media M8 could not install the required tools.$([Environment]::NewLine)$([Environment]::NewLine)$failureMessage",
+                'Tool installation failed',
+                'OK',
+                'Error'
+            ) | Out-Null
+            return
+        }
+
+        $toolsDirectory = Join-Path $PSScriptRoot 'tools'
+        $paths = Get-MediaM8RuntimeToolPaths -SearchDirectories @($toolsDirectory)
+        $missing = @(Get-MediaM8MissingRuntimeTools -ToolPaths $paths)
+
+        if ($missing.Count -gt 0) {
+            $message = 'One or more required tools are still unavailable: ' + ($missing -join ', ')
+            Add-LogLine $message
+            $status.Text = 'Required tools are missing.'
+            [System.Windows.Forms.MessageBox]::Show($message, 'Required tools missing', 'OK', 'Error') | Out-Null
+            return
+        }
+
+        $status.Text = 'Required tools installed.'
+        Add-LogLine 'Required tools are ready.'
+        $btnDownload.PerformClick()
+    }
+})
+
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 500
 $timer.Add_Tick({
@@ -297,23 +361,35 @@ $btnDownload.Add_Click({
     $toolsDirectory = Join-Path $PSScriptRoot 'tools'
     $portableDirectories = @($toolsDirectory)
 
-    try {
-        $runtimeTools = Ensure-MediaM8RuntimeTools -ToolsDirectory $toolsDirectory -SearchDirectories $portableDirectories -Owner $form
-    }
-    catch {
-        Add-LogLine ('Tool installation failed: ' + $_.Exception.Message)
-        [System.Windows.Forms.MessageBox]::Show(
-            "Media M8 could not install the required tools.$([Environment]::NewLine)$([Environment]::NewLine)$($_.Exception.Message)",
-            'Tool installation failed',
-            'OK',
-            'Error'
-        ) | Out-Null
-        $status.Text = 'Tool installation failed.'
-        return
-    }
+    $runtimeTools = Get-MediaM8RuntimeToolPaths -SearchDirectories $portableDirectories
+    $missingTools = @(Get-MediaM8MissingRuntimeTools -ToolPaths $runtimeTools)
 
-    if (-not $runtimeTools) {
-        $status.Text = 'Required tools are missing.'
+    if ($missingTools.Count -gt 0) {
+        if (-not (Show-MediaM8InstallPrompt -MissingTools $missingTools -Owner $form)) {
+            $status.Text = 'Required tools are missing.'
+            return
+        }
+
+        Add-LogLine 'Installing required tools from official project releases...'
+        $status.Text = 'Installing required tools...'
+        Set-UiBusy $true
+
+        try {
+            $script:runtimeInstallJob = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory
+            $installTimer.Start()
+        }
+        catch {
+            Set-UiBusy $false
+            Add-LogLine ('Tool installation failed: ' + $_.Exception.Message)
+            $status.Text = 'Tool installation failed.'
+            [System.Windows.Forms.MessageBox]::Show(
+                "Media M8 could not start the tool installation.$([Environment]::NewLine)$([Environment]::NewLine)$($_.Exception.Message)",
+                'Tool installation failed',
+                'OK',
+                'Error'
+            ) | Out-Null
+        }
+
         return
     }
 
@@ -421,6 +497,12 @@ $btnDownload.Add_Click({
 })
 
 $form.Add_FormClosing({
+    if ($script:runtimeInstallJob) {
+        Stop-Job -Job $script:runtimeInstallJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $script:runtimeInstallJob -Force -ErrorAction SilentlyContinue
+        $script:runtimeInstallJob = $null
+    }
+
     if ($script:downloadJob) {
         Stop-Job -Job $script:downloadJob -ErrorAction SilentlyContinue
         Remove-Job -Job $script:downloadJob -Force -ErrorAction SilentlyContinue
