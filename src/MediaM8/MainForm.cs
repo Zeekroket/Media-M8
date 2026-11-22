@@ -137,7 +137,7 @@ internal sealed class MainForm : Form
         _radioVideo.AutoSize = true;
         groupType.Controls.Add(_radioVideo);
 
-        var groupVideoQuality = NewGroupBox("Video quality", 340, 174, 190, 75);
+        var groupVideoQuality = NewGroupBox("Video quality", 550, 174, 190, 75);
         Controls.Add(groupVideoQuality);
 
         _cmbVideoQuality.Location = new Point(20, 29);
@@ -148,7 +148,7 @@ internal sealed class MainForm : Form
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
 
-        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 174, 190, 75);
+        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 340, 174, 190, 75);
         Controls.Add(groupAudioQuality);
 
         _cmbAudioQuality.Location = new Point(20, 29);
