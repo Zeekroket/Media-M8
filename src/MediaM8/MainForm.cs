@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Net.Http;
 using System.Text;
 using System.Windows.Forms;
 
@@ -7,10 +8,13 @@ namespace MediaM8;
 
 internal sealed class MainForm : Form
 {
+    private static readonly HttpClient ThumbnailHttpClient = new();
+
     private readonly SessionLogger _logger;
 
     private readonly TextBox _txtUrl = new();
     private readonly GroupBox _previewGroup = new();
+    private readonly PictureBox _previewThumbnail = new();
     private readonly Label _previewTitle = new();
     private readonly Label _previewInfo = new();
     private readonly TextBox _txtFolder = new();
@@ -85,14 +89,20 @@ internal sealed class MainForm : Form
         _previewGroup.Size = new Size(720, 62);
         Controls.Add(_previewGroup);
 
-        _previewTitle.Location = new Point(15, 18);
-        _previewTitle.Size = new Size(690, 20);
+        _previewThumbnail.Location = new Point(15, 16);
+        _previewThumbnail.Size = new Size(72, 40);
+        _previewThumbnail.SizeMode = PictureBoxSizeMode.Zoom;
+        _previewThumbnail.Visible = false;
+        _previewGroup.Controls.Add(_previewThumbnail);
+
+        _previewTitle.Location = new Point(100, 18);
+        _previewTitle.Size = new Size(605, 20);
         _previewTitle.AutoEllipsis = true;
         _previewTitle.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
         _previewGroup.Controls.Add(_previewTitle);
 
-        _previewInfo.Location = new Point(15, 38);
-        _previewInfo.Size = new Size(690, 18);
+        _previewInfo.Location = new Point(100, 38);
+        _previewInfo.Size = new Size(605, 18);
         _previewInfo.AutoEllipsis = true;
         _previewGroup.Controls.Add(_previewInfo);
 
@@ -287,6 +297,9 @@ internal sealed class MainForm : Form
             }
 
             ShowMediaPreview(preview);
+            await LoadPreviewThumbnailAsync(
+                preview.ThumbnailUrl,
+                cancellation);
         }
         catch (OperationCanceledException)
         {
@@ -308,6 +321,11 @@ internal sealed class MainForm : Form
     {
         _previewTitle.Text = string.Empty;
         _previewInfo.Text = string.Empty;
+
+        var oldImage = _previewThumbnail.Image;
+        _previewThumbnail.Image = null;
+        _previewThumbnail.Visible = false;
+        oldImage?.Dispose();
     }
 
     private void ShowMediaPreview(MediaPreviewInfo preview)
@@ -333,6 +351,60 @@ internal sealed class MainForm : Form
         }
 
         _previewInfo.Text = string.Join(" · ", parts);
+    }
+
+    private async Task LoadPreviewThumbnailAsync(
+        string? thumbnailUrl,
+        CancellationTokenSource cancellation)
+    {
+        if (string.IsNullOrWhiteSpace(thumbnailUrl) ||
+            cancellation.IsCancellationRequested ||
+            !ReferenceEquals(_previewCancellation, cancellation))
+        {
+            return;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                thumbnailUrl);
+            request.Headers.UserAgent.ParseAdd(
+                $"{AppInfo.Name.Replace(" ", string.Empty)}/{AppInfo.Version}");
+
+            using var response = await ThumbnailHttpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellation.Token);
+            response.EnsureSuccessStatusCode();
+
+            await using var stream = await response.Content.ReadAsStreamAsync(
+                cancellation.Token);
+            using var sourceImage = Image.FromStream(stream);
+            var thumbnailImage = new Bitmap(sourceImage);
+
+            if (cancellation.IsCancellationRequested ||
+                !ReferenceEquals(_previewCancellation, cancellation))
+            {
+                thumbnailImage.Dispose();
+                return;
+            }
+
+            var oldImage = _previewThumbnail.Image;
+            _previewThumbnail.Image = thumbnailImage;
+            _previewThumbnail.Visible = true;
+            oldImage?.Dispose();
+        }
+        catch (OperationCanceledException)
+        {
+            // URL changed while the thumbnail was loading.
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Preview thumbnail unavailable: {ex.Message}",
+                "PREVIEW");
+        }
     }
 
     private static string FormatDuration(TimeSpan duration)
@@ -1204,6 +1276,10 @@ internal sealed class MainForm : Form
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
+
+        var previewImage = _previewThumbnail.Image;
+        _previewThumbnail.Image = null;
+        previewImage?.Dispose();
 
         if (_downloadProcess is null)
         {
