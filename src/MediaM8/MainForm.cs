@@ -1911,35 +1911,76 @@ internal sealed class MainForm : Form
     {
         using var dialog = new Form
         {
-            Text = "Required tools are missing",
+            Text = "Media M8 needs a quick setup",
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
             MinimizeBox = false,
             ShowInTaskbar = false,
-            ClientSize = new Size(465, 190),
+            ClientSize = new Size(500, 255),
             Font = new Font("Segoe UI", 9f)
         };
 
-        var label = new Label
+        var heading = new Label
         {
             Location = new Point(20, 18),
-            Size = new Size(425, 105),
+            Size = new Size(460, 28),
+            Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+            Text = "A few download components are needed."
+        };
+        dialog.Controls.Add(heading);
+
+        var label = new Label
+        {
+            Location = new Point(20, 55),
+            Size = new Size(460, 105),
             Text =
-                "Media M8 needs the following tools:" +
+                "Media M8 uses these components to download and convert media." +
                 Environment.NewLine +
                 Environment.NewLine +
-                string.Join(", ", missingTools) +
+                "They are downloaded from their official project release sources and verified before Media M8 uses them." +
                 Environment.NewLine +
                 Environment.NewLine +
-                "Install them now from their official project releases?"
+                "Media M8 can install the missing components for you now."
         };
         dialog.Controls.Add(label);
+
+        var learnMoreLink = new LinkLabel
+        {
+            Location = new Point(20, 170),
+            Size = new Size(100, 24),
+            Text = "Learn more"
+        };
+        learnMoreLink.LinkClicked += (_, _) =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = HelpUrl + "#first-run-setup",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.Write(
+                    $"Could not open first-run help: {ex}",
+                    "ERROR");
+
+                MessageBox.Show(
+                    dialog,
+                    "Media M8 could not open the Help page.",
+                    AppInfo.Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        };
+        dialog.Controls.Add(learnMoreLink);
 
         var installButton = new Button
         {
             Text = "Install",
-            Location = new Point(275, 142),
+            Location = new Point(310, 205),
             Size = new Size(80, 30),
             DialogResult = DialogResult.OK
         };
@@ -1948,7 +1989,7 @@ internal sealed class MainForm : Form
         var cancelButton = new Button
         {
             Text = "Cancel",
-            Location = new Point(365, 142),
+            Location = new Point(400, 205),
             Size = new Size(80, 30),
             DialogResult = DialogResult.Cancel
         };
@@ -1956,6 +1997,11 @@ internal sealed class MainForm : Form
 
         dialog.AcceptButton = installButton;
         dialog.CancelButton = cancelButton;
+
+        _logger.Write(
+            "First-run setup prompt shown. Missing components: " +
+            string.Join(", ", missingTools),
+            "INSTALLER");
 
         return dialog.ShowDialog(this) == DialogResult.OK;
     }
