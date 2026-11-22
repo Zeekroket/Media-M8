@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - STOP button for safely ending the active download process and returning Media M8 to an idle state.
 - Friendly download failure messages with a clear next action and expandable technical details.
 - Automatic text preview for pasted media links, showing title plus uploader/channel and duration or playlist item count when available.
+- Thumbnail image in the single-media preview when the source provides a usable image.
 
 ### Changed
 
