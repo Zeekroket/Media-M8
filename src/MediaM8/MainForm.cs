@@ -137,18 +137,18 @@ internal sealed class MainForm : Form
         _radioVideo.AutoSize = true;
         groupType.Controls.Add(_radioVideo);
 
-        var groupVideoQuality = NewGroupBox("Video quality", 340, 174, 190, 75);
+        var groupVideoQuality = NewGroupBox("Video quality", 550, 174, 190, 75);
         Controls.Add(groupVideoQuality);
 
         _cmbVideoQuality.Location = new Point(20, 29);
         _cmbVideoQuality.Size = new Size(145, 25);
         _cmbVideoQuality.DropDownStyle = ComboBoxStyle.DropDownList;
-        _cmbVideoQuality.Items.AddRange(new object[] { "480p", "720p", "1080p", "Best" });
+        _cmbVideoQuality.Items.AddRange(new object[] { "Best", "1080p", "720p", "480p" });
         _cmbVideoQuality.SelectedIndex = 0;
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
 
-        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 550, 174, 190, 75);
+        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 340, 174, 190, 75);
         Controls.Add(groupAudioQuality);
 
         _cmbAudioQuality.Location = new Point(20, 29);
