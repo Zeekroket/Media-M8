@@ -22,40 +22,6 @@ internal sealed record DownloadProgressSnapshot(
 internal static class DownloadProgressParser
 {
     public const string Marker = "MEDIA_M8_PROGRESS|";
-    public const string ItemMarker = "MEDIA_M8_ITEM|";
-
-    public static bool TryParseItemStart(
-        string line,
-        out int? playlistIndex,
-        out int? playlistCount)
-    {
-        playlistIndex = null;
-        playlistCount = null;
-
-        if (!line.StartsWith(ItemMarker, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var payload = line[ItemMarker.Length..];
-        var parts = payload.Split('|', 2);
-
-        if (parts.Length > 0 &&
-            int.TryParse(parts[0], out var parsedIndex) &&
-            parsedIndex > 0)
-        {
-            playlistIndex = parsedIndex;
-        }
-
-        if (parts.Length > 1 &&
-            int.TryParse(parts[1], out var parsedCount) &&
-            parsedCount > 0)
-        {
-            playlistCount = parsedCount;
-        }
-
-        return true;
-    }
 
     public static bool TryParse(
         string line,

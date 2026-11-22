@@ -25,6 +25,8 @@ internal sealed class MainForm : Form
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private int _currentItemIndex = 1;
+    private int _currentItemCount = 1;
     private DownloadProgressSnapshot _currentProgress = new(
         DownloadPhase.Preparing,
         null,
@@ -361,8 +363,6 @@ internal sealed class MainForm : Form
             return;
         }
 
-        var arguments = BuildYtDlpArguments(url, folder, runtimeTools);
-
         _txtLog.Clear();
         AddUiLog($"Output folder: {folder}");
         AddUiLog(
@@ -375,7 +375,6 @@ internal sealed class MainForm : Form
         AddUiLog(string.Empty);
 
         SetUiBusy(true);
-        _status.Text = "Downloading...";
         SetDownloadProgress(new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
             null,
@@ -385,14 +384,47 @@ internal sealed class MainForm : Form
             null,
             "preparing"));
 
+        if (_chkPlaylist.Checked)
+        {
+            _status.Text = "Preparing playlist...";
+        }
+
         try
         {
-            var exitCode = await RunDownloadAsync(runtimeTools.YtDlp, arguments);
+            var plan = await DownloadPlanner.PrepareAsync(
+                runtimeTools.YtDlp,
+                url,
+                _chkPlaylist.Checked,
+                IsYouTubeUrl(url),
+                runtimeTools.Deno,
+                _logger,
+                CancellationToken.None);
 
-            if (exitCode != 0)
+            if (plan.IsPlaylist)
             {
-                throw new InvalidOperationException(
-                    $"yt-dlp exited with code {exitCode}.");
+                AddUiLog($"Playlist prepared: {plan.Items.Count} items.");
+                AddUiLog(string.Empty);
+            }
+
+            foreach (var item in plan.Items)
+            {
+                SetPreparingItem(item.Index, item.Total);
+
+                var arguments = BuildYtDlpArguments(
+                    item.Url,
+                    folder,
+                    runtimeTools,
+                    plan.IsPlaylist ? item.Index : null);
+
+                var exitCode = await RunDownloadAsync(
+                    runtimeTools.YtDlp,
+                    arguments);
+
+                if (exitCode != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"yt-dlp exited with code {exitCode}.");
+                }
             }
 
             SetDownloadProgress(new DownloadProgressSnapshot(
@@ -435,7 +467,8 @@ internal sealed class MainForm : Form
     private List<string> BuildYtDlpArguments(
         string url,
         string folder,
-        RuntimeToolPaths runtimeTools)
+        RuntimeToolPaths runtimeTools,
+        int? playlistIndex)
     {
         var arguments = new List<string>
         {
@@ -447,8 +480,6 @@ internal sealed class MainForm : Form
             $"download:{DownloadProgressParser.Marker}download|%(progress)j",
             "--progress-template",
             $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j",
-            "--print",
-            $"before_dl:{DownloadProgressParser.ItemMarker}%(playlist_index)s|%(playlist_count)s",
             "--no-quiet"
         };
 
@@ -464,20 +495,13 @@ internal sealed class MainForm : Form
         arguments.Add("--ffmpeg-location");
         arguments.Add(Path.GetDirectoryName(runtimeTools.FFmpeg)!);
 
-        string outputTemplate;
+        arguments.Add("--no-playlist");
 
-        if (_chkPlaylist.Checked)
-        {
-            arguments.Add("--yes-playlist");
-            outputTemplate = Path.Combine(
+        var outputTemplate = playlistIndex is > 0
+            ? Path.Combine(
                 folder,
-                "%(playlist_index)03d - %(title)s.%(ext)s");
-        }
-        else
-        {
-            arguments.Add("--no-playlist");
-            outputTemplate = Path.Combine(folder, "%(title)s.%(ext)s");
-        }
+                $"{playlistIndex.Value:D3} - %(title)s.%(ext)s")
+            : Path.Combine(folder, "%(title)s.%(ext)s");
 
         if (_chkArchive.Checked)
         {
@@ -596,15 +620,6 @@ internal sealed class MainForm : Form
 
     private void HandleProcessOutput(string line)
     {
-        if (DownloadProgressParser.TryParseItemStart(
-                line,
-                out var playlistIndex,
-                out var playlistCount))
-        {
-            SetPreparingItem(playlistIndex, playlistCount);
-            return;
-        }
-
         if (DownloadProgressParser.TryParse(line, out var snapshot) &&
             snapshot is not null)
         {
@@ -615,8 +630,11 @@ internal sealed class MainForm : Form
         AddUiLog(line);
     }
 
-    private void SetPreparingItem(int? playlistIndex, int? playlistCount)
+    private void SetPreparingItem(int playlistIndex, int playlistCount)
     {
+        _currentItemIndex = playlistIndex;
+        _currentItemCount = playlistCount;
+
         var snapshot = new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
             null,
@@ -628,10 +646,9 @@ internal sealed class MainForm : Form
 
         _currentProgress = snapshot;
 
-        var itemText =
-            playlistIndex is > 0 && playlistCount is > 0
-                ? $"item {playlistIndex} of {playlistCount}"
-                : "next item";
+        var itemText = playlistCount > 1
+            ? $"item {playlistIndex} of {playlistCount}"
+            : "single item";
 
         _logger.Write(
             $"phase=Preparing; status=preparing; {itemText}",
@@ -646,10 +663,9 @@ internal sealed class MainForm : Form
         {
             _progressBar.Style = ProgressBarStyle.Marquee;
             _progressBar.MarqueeAnimationSpeed = 30;
-            _status.Text =
-                playlistIndex is > 0 && playlistCount is > 0
-                    ? $"Preparing item {playlistIndex} of {playlistCount}..."
-                    : "Preparing download...";
+            _status.Text = playlistCount > 1
+                ? $"Preparing item {playlistIndex} of {playlistCount}..."
+                : "Preparing download...";
         }
 
         if (InvokeRequired)
@@ -722,7 +738,9 @@ internal sealed class MainForm : Form
             case DownloadPhase.Processing:
                 _progressBar.Style = ProgressBarStyle.Marquee;
                 _progressBar.MarqueeAnimationSpeed = 30;
-                _status.Text = "Processing download...";
+                _status.Text = _currentItemCount > 1
+                    ? $"Processing item {_currentItemIndex} of {_currentItemCount}..."
+                    : "Processing download...";
                 break;
 
             case DownloadPhase.Completed:
@@ -734,9 +752,13 @@ internal sealed class MainForm : Form
         }
     }
 
-    private static string BuildDownloadStatusText(DownloadProgressSnapshot snapshot)
+    private string BuildDownloadStatusText(DownloadProgressSnapshot snapshot)
     {
-        var parts = new List<string> { "Downloading" };
+        var heading = _currentItemCount > 1
+            ? $"Downloading item {_currentItemIndex} of {_currentItemCount}"
+            : "Downloading";
+
+        var parts = new List<string> { heading };
 
         if (snapshot.Percentage is not null)
         {
