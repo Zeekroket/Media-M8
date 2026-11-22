@@ -293,7 +293,21 @@ $btnDownload.Add_Click({
     $toolsDirectory = Join-Path $PSScriptRoot 'tools'
     $portableDirectories = @($toolsDirectory, $PSScriptRoot)
 
-    $runtimeTools = Ensure-MediaM8RuntimeTools -ToolsDirectory $toolsDirectory -SearchDirectories $portableDirectories -Owner $form
+    try {
+        $runtimeTools = Ensure-MediaM8RuntimeTools -ToolsDirectory $toolsDirectory -SearchDirectories $portableDirectories -Owner $form
+    }
+    catch {
+        Add-LogLine ('Tool installation failed: ' + $_.Exception.Message)
+        [System.Windows.Forms.MessageBox]::Show(
+            "Media M8 could not install the required tools.$([Environment]::NewLine)$([Environment]::NewLine)$($_.Exception.Message)",
+            'Tool installation failed',
+            'OK',
+            'Error'
+        ) | Out-Null
+        $status.Text = 'Tool installation failed.'
+        return
+    }
+
     if (-not $runtimeTools) {
         $status.Text = 'Required tools are missing.'
         return
