@@ -28,6 +28,7 @@ $script:AppVersion = '0.1.0'
 $script:downloadJob = $null
 $script:runtimeInstallProcess = $null
 $script:installerLogReadOffset = 0
+$script:lastInstallerHeartbeat = [DateTime]::MinValue
 $script:lastDownloadFolder = $null
 $script:openFolderWhenDone = $false
 
@@ -267,6 +268,11 @@ $installTimer.Interval = 250
 $installTimer.Add_Tick({
     if (-not $script:runtimeInstallProcess) { return }
 
+    if (([DateTime]::UtcNow - $script:lastInstallerHeartbeat).TotalSeconds -ge 5) {
+        Write-DiagnosticLog ('UI heartbeat: installer process running=' + (-not $script:runtimeInstallProcess.HasExited))
+        $script:lastInstallerHeartbeat = [DateTime]::UtcNow
+    }
+
     try {
         $allLines = @(Get-Content -LiteralPath $script:LogFile -ErrorAction SilentlyContinue)
         if ($allLines.Count -gt $script:installerLogReadOffset) {
@@ -398,6 +404,7 @@ $btnDownload.Add_Click({
         try {
             Write-DiagnosticLog 'Starting runtime installer process.'
             $script:installerLogReadOffset = @(Get-Content -LiteralPath $script:LogFile -ErrorAction SilentlyContinue).Count
+            $script:lastInstallerHeartbeat = [DateTime]::MinValue
             $script:runtimeInstallProcess = Start-MediaM8RuntimeToolInstall -ToolsDirectory $toolsDirectory -LogFile $script:LogFile
             Write-DiagnosticLog ('Runtime installer process id: ' + $script:runtimeInstallProcess.Id)
             $installTimer.Start()
