@@ -93,8 +93,11 @@ internal static class DownloadPlanner
                 logger.Write(stderr.Trim(), "PLAN");
             }
 
-            throw new InvalidOperationException(
-                $"yt-dlp could not prepare the playlist (exit code {process.ExitCode}).");
+            throw new DownloadFailureException(
+                "The playlist could not be prepared.",
+                $"yt-dlp playlist preparation exited with code {process.ExitCode}." +
+                Environment.NewLine +
+                stderr.Trim());
         }
 
         var rawItems = new List<(string Url, string? Title)>();
@@ -120,8 +123,9 @@ internal static class DownloadPlanner
 
         if (rawItems.Count == 0)
         {
-            throw new InvalidOperationException(
-                "No downloadable items were found.");
+            throw new DownloadFailureException(
+                "No downloadable items were found.",
+                "Playlist preparation completed but returned no downloadable items.");
         }
 
         var isPlaylist = rawItems.Count > 1;

@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Visible download progress with plain-language phase, percentage, speed and estimated time remaining.
 - Playlists are prepared before downloading and then processed one item at a time so Media M8 knows the current item and total count.
 - STOP button for safely ending the active download process and returning Media M8 to an idle state.
+- Friendly download failure messages with a clear next action and expandable technical details.
 
 ### Changed
 

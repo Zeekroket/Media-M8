@@ -456,7 +456,7 @@ internal sealed class MainForm : Form
                     runtimeTools,
                     plan.IsPlaylist ? item.Index : null);
 
-                var exitCode = await RunDownloadAsync(
+                var result = await RunDownloadAsync(
                     runtimeTools.YtDlp,
                     arguments);
 
@@ -466,10 +466,13 @@ internal sealed class MainForm : Form
                         "The download was stopped by the user.");
                 }
 
-                if (exitCode != 0)
+                if (result.ExitCode != 0)
                 {
-                    throw new InvalidOperationException(
-                        $"yt-dlp exited with code {exitCode}.");
+                    throw new DownloadFailureException(
+                        "The download process failed.",
+                        $"yt-dlp exited with code {result.ExitCode}." +
+                        Environment.NewLine +
+                        result.TechnicalDetails);
                 }
             }
 
@@ -509,9 +512,21 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             AddUiLog(string.Empty);
-            AddUiLog($"Download failed: {ex.Message}");
+
+            var failure = FriendlyDownloadFailure.From(ex);
+            var technicalDetails = ex is DownloadFailureException downloadFailure
+                ? downloadFailure.TechnicalDetails
+                : ex.ToString();
+
+            AddUiLog(failure.Message);
             _logger.Write($"Download failed: {ex}", "ERROR");
-            _status.Text = "Download failed.";
+            _status.Text = failure.Status;
+
+            FriendlyErrorDialog.Show(
+                this,
+                failure,
+                technicalDetails,
+                _logger.LogFilePath);
         }
         finally
         {
@@ -616,10 +631,33 @@ internal sealed class MainForm : Form
         };
     }
 
-    private async Task<int> RunDownloadAsync(
+    private async Task<DownloadProcessResult> RunDownloadAsync(
         string ytDlpPath,
         IReadOnlyList<string> arguments)
     {
+        var recentOutput = new Queue<string>();
+        var outputLock = new object();
+
+        void CaptureOutput(string line)
+        {
+            if (line.StartsWith(
+                    DownloadProgressParser.Marker,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            lock (outputLock)
+            {
+                recentOutput.Enqueue(line);
+
+                while (recentOutput.Count > 30)
+                {
+                    recentOutput.Dequeue();
+                }
+            }
+        }
+
         var startInfo = new ProcessStartInfo
         {
             FileName = ytDlpPath,
@@ -646,6 +684,7 @@ internal sealed class MainForm : Form
         {
             if (args.Data is not null)
             {
+                CaptureOutput(args.Data);
                 HandleProcessOutput(args.Data);
             }
         };
@@ -654,6 +693,7 @@ internal sealed class MainForm : Form
         {
             if (args.Data is not null)
             {
+                CaptureOutput(args.Data);
                 HandleProcessOutput(args.Data);
             }
         };
@@ -676,7 +716,19 @@ internal sealed class MainForm : Form
 
         SetStopAvailable(false);
         _logger.Write($"yt-dlp process exited with code {process.ExitCode}.");
-        return process.ExitCode;
+
+        string technicalDetails;
+
+        lock (outputLock)
+        {
+            technicalDetails = recentOutput.Count == 0
+                ? "No additional process output was captured."
+                : string.Join(Environment.NewLine, recentOutput);
+        }
+
+        return new DownloadProcessResult(
+            process.ExitCode,
+            technicalDetails);
     }
 
     private void SetStopAvailable(bool available)
