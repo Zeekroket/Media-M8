@@ -14,4 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Native x64 Windows launcher source.
 - Build and packaging scripts for development releases.
 
+- Runtime dependencies are now resolved from Media M8's local `tools` directory only.
+
 No public release has been published yet.
