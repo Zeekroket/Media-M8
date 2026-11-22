@@ -24,6 +24,14 @@ internal sealed class MainForm : Form
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private DownloadProgressSnapshot _currentProgress = new(
+        DownloadPhase.Preparing,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "preparing");
     private bool _isBusy;
 
     public MainForm(SessionLogger logger)
@@ -358,6 +366,14 @@ internal sealed class MainForm : Form
 
         SetUiBusy(true);
         _status.Text = "Downloading...";
+        SetDownloadProgress(new DownloadProgressSnapshot(
+            DownloadPhase.Preparing,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "preparing"));
 
         try
         {
@@ -368,6 +384,15 @@ internal sealed class MainForm : Form
                 throw new InvalidOperationException(
                     $"yt-dlp exited with code {exitCode}.");
             }
+
+            SetDownloadProgress(new DownloadProgressSnapshot(
+                DownloadPhase.Completed,
+                100d,
+                _currentProgress.DownloadedBytes,
+                _currentProgress.TotalBytes,
+                null,
+                0,
+                "completed"));
 
             AddUiLog(string.Empty);
             AddUiLog("Done.");
@@ -402,7 +427,17 @@ internal sealed class MainForm : Form
         string folder,
         RuntimeToolPaths runtimeTools)
     {
-        var arguments = new List<string>();
+        var arguments = new List<string>
+        {
+            "--progress",
+            "--newline",
+            "--progress-delta",
+            "0.5",
+            "--progress-template",
+            $"download:{DownloadProgressParser.Marker}download|%(progress)j",
+            "--progress-template",
+            $"postprocess:{DownloadProgressParser.Marker}postprocess|%(progress)j"
+        };
 
         if (IsYouTubeUrl(url))
         {
@@ -515,7 +550,7 @@ internal sealed class MainForm : Form
         {
             if (args.Data is not null)
             {
-                AddUiLog(args.Data);
+                HandleProcessOutput(args.Data);
             }
         };
 
@@ -523,7 +558,7 @@ internal sealed class MainForm : Form
         {
             if (args.Data is not null)
             {
-                AddUiLog(args.Data);
+                HandleProcessOutput(args.Data);
             }
         };
 
@@ -544,6 +579,39 @@ internal sealed class MainForm : Form
 
         _logger.Write($"yt-dlp process exited with code {process.ExitCode}.");
         return process.ExitCode;
+    }
+
+    private void HandleProcessOutput(string line)
+    {
+        if (DownloadProgressParser.TryParse(line, out var snapshot) &&
+            snapshot is not null)
+        {
+            SetDownloadProgress(snapshot);
+            return;
+        }
+
+        AddUiLog(line);
+    }
+
+    private void SetDownloadProgress(DownloadProgressSnapshot snapshot)
+    {
+        _currentProgress = snapshot;
+
+        _logger.Write(
+            $"phase={snapshot.Phase}; " +
+            $"status={snapshot.Status}; " +
+            $"percentage={FormatNumber(snapshot.Percentage)}; " +
+            $"downloaded_bytes={FormatNumber(snapshot.DownloadedBytes)}; " +
+            $"total_bytes={FormatNumber(snapshot.TotalBytes)}; " +
+            $"speed_bytes_per_second={FormatNumber(snapshot.SpeedBytesPerSecond)}; " +
+            $"eta_seconds={FormatNumber(snapshot.EtaSeconds)}",
+            "PROGRESS");
+    }
+
+    private static string FormatNumber<T>(T? value)
+        where T : struct
+    {
+        return value?.ToString() ?? string.Empty;
     }
 
     private bool ShowInstallPrompt(IReadOnlyList<string> missingTools)
