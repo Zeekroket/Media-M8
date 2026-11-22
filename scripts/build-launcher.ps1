@@ -1,3 +1,9 @@
+param(
+    [switch]$Sign,
+    [string]$CertificateSubject = 'CN=Zeekroket',
+    [string]$TimestampServer = 'http://timestamp.digicert.com'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -62,4 +68,35 @@ $linkArgs = @(
 if ($LASTEXITCODE -ne 0) { throw "Failed to link the launcher (exit code $LASTEXITCODE)." }
 
 Write-Host "Built $output"
+
+if ($Sign) {
+    $certificate = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+        Where-Object { $_.Subject -eq $CertificateSubject -and $_.HasPrivateKey } |
+        Sort-Object NotAfter -Descending |
+        Select-Object -First 1
+
+    if (-not $certificate) {
+        throw "No code-signing certificate with private key was found for '$CertificateSubject'."
+    }
+
+    Write-Host "Signing with $($certificate.Subject) [$($certificate.Thumbprint)]"
+
+    $signature = Set-AuthenticodeSignature `
+        -FilePath $output `
+        -Certificate $certificate `
+        -HashAlgorithm SHA256 `
+        -TimestampServer $TimestampServer
+
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Signing failed: $($signature.Status) - $($signature.StatusMessage)"
+    }
+
+    $verified = Get-AuthenticodeSignature -FilePath $output
+    if ($verified.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Signature verification failed: $($verified.Status) - $($verified.StatusMessage)"
+    }
+
+    Write-Host 'Signature verified.'
+}
+
 Get-FileHash -Path $output -Algorithm SHA256 | Format-List
