@@ -17,8 +17,10 @@ $kernelLibrary = Join-Path $buildDir 'kernel32.lib'
 $resourceObject = Join-Path $buildDir 'MediaM8.res'
 $output = Join-Path $distDir 'MediaM8.exe'
 $runtimeScript = Join-Path $repoRoot 'src\MediaM8.ps1'
+$runtimeToolsScript = Join-Path $repoRoot 'src\RuntimeTools.ps1'
 $runtimeIcon = Join-Path $repoRoot 'assets\MediaM8.ico'
 $distScript = Join-Path $distDir 'MediaM8.ps1'
+$distToolsScript = Join-Path $distDir 'RuntimeTools.ps1'
 $distIcon = Join-Path $distDir 'MediaM8.ico'
 
 $clang = Get-Command 'clang++.exe' -ErrorAction SilentlyContinue
@@ -28,6 +30,23 @@ $llvmRc = Get-Command 'llvm-rc.exe' -ErrorAction SilentlyContinue
 if (-not $clang -or -not $lld -or -not $llvmRc) {
     throw 'LLVM clang++, lld-link and llvm-rc are required to build the native launcher.'
 }
+
+function Assert-PowerShellSyntax {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $tokens = $null
+    $parseErrors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors) | Out-Null
+
+    if ($parseErrors.Count -gt 0) {
+        $messages = ($parseErrors | ForEach-Object { $_.Message }) -join '; '
+        throw "PowerShell syntax validation failed for $Path: $messages"
+    }
+}
+
+Assert-PowerShellSyntax -Path $runtimeScript
+Assert-PowerShellSyntax -Path $runtimeToolsScript
+Write-Host 'PowerShell syntax verified.'
 
 New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
@@ -104,6 +123,7 @@ if ($Sign) {
 }
 
 Copy-Item -LiteralPath $runtimeScript -Destination $distScript -Force
+Copy-Item -LiteralPath $runtimeToolsScript -Destination $distToolsScript -Force
 Copy-Item -LiteralPath $runtimeIcon -Destination $distIcon -Force
 
 Write-Host 'Runtime files copied to dist.'
