@@ -363,6 +363,17 @@ internal sealed class MainForm : Form
         bool downloadAsMp3,
         string quality)
     {
+        if (_isBusy)
+        {
+            MessageBox.Show(
+                this,
+                "Finish or stop the current download first.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         if (downloadAsMp3)
         {
             _radioMp3.Checked = true;
