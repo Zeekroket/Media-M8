@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Simple built-in presets for MP3 Best, MP3 320 kbps, Video 1080p and Video Best.
 - Session-only single-worker download queue with per-item setting snapshots and automatic next-item processing.
 - Queue window with live item states, remove-pending, clear-finished and Pause/Resume Queue controls.
+- Reassuring first-run setup wording with a Learn more link to dependency and verification information.
 
 ### Changed
 
