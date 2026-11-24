@@ -23,25 +23,22 @@ You can check or refresh these components later through **Tools → Check downlo
 1. Copy the link to the video, audio or playlist you want.
 2. Paste it into **Media URL**.
 3. Wait for the **Preview** to appear so you can check that Media M8 found the right media.
-4. If Media M8 finds a playlist, choose **This item only** or **Entire playlist**.
-5. Choose **MP3** or **Video (MKV)**.
-6. Choose the quality you want.
-7. Check the **Save to** folder.
-8. Click **DOWNLOAD**.
+4. Choose **MP3** or **Video (MKV)**.
+5. Choose the quality you want.
+6. Check the **Save to** folder.
+7. Click **DOWNLOAD**.
 
 Media M8 shows progress at the bottom of the window.
 
 ## Playlists
 
-Media M8 checks whether a pasted link belongs to a playlist.
+**Download playlist** is off by default.
 
-When a playlist is found, a **Playlist found** choice appears:
-- **This item only** — downloads only the current item and is the safe default when a single item is available;
-- **Entire playlist** — downloads the full playlist and shows the number of items when that information is available.
+Turn it on when you intentionally want the full playlist, such as an album or a playlist with multiple items.
 
-For a direct playlist link that does not contain a separate current item, choose **Entire playlist** to continue.
+Media M8 prepares the playlist first so it knows how many items there are. It then downloads the items one at a time.
 
-When the full playlist is selected, Media M8 prepares the playlist first so it knows how many items there are. It then downloads the items one at a time.
+Leave **Download playlist** off when you only want the single video or audio item from the pasted link.
 
 ## Queue several downloads
 
