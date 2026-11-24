@@ -37,6 +37,7 @@ internal sealed class MainForm : Form
     private readonly Button _btnBrowse = new();
     private readonly Button _btnDownload = new();
     private readonly Button _btnStop = new();
+    private readonly Button _btnDetails = new();
     private readonly TextBox _txtLog = new();
     private readonly ProgressBar _progressBar = new();
     private readonly Label _status = new();
@@ -58,6 +59,7 @@ internal sealed class MainForm : Form
         null,
         "preparing");
     private bool _isBusy;
+    private bool _detailsVisible;
 
     public MainForm(SessionLogger logger)
     {
@@ -66,8 +68,8 @@ internal sealed class MainForm : Form
         Text = $"{AppInfo.Name} {AppInfo.Version}";
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.None;
-        Size = new Size(780, 714);
-        MinimumSize = new Size(780, 714);
+        Size = new Size(780, 560);
+        MinimumSize = new Size(780, 560);
         Font = new Font("Segoe UI", 9f);
 
         try
@@ -213,18 +215,23 @@ internal sealed class MainForm : Form
         Controls.Add(_btnStop);
         _btnStop.BringToFront();
 
-        Controls.Add(NewLabel("Log", 20, 434));
+        _btnDetails.Text = "Details";
+        _btnDetails.Location = new Point(20, 430);
+        _btnDetails.Size = new Size(90, 29);
+        _btnDetails.Click += (_, _) => ToggleDetails();
+        Controls.Add(_btnDetails);
 
-        _txtLog.Location = new Point(20, 457);
-        _txtLog.Size = new Size(720, 160);
+        _txtLog.Location = new Point(20, 467);
+        _txtLog.Size = new Size(720, 150);
         _txtLog.Multiline = true;
         _txtLog.ScrollBars = ScrollBars.Vertical;
         _txtLog.ReadOnly = true;
         _txtLog.WordWrap = false;
         _txtLog.Font = new Font("Consolas", 9f);
+        _txtLog.Visible = false;
         Controls.Add(_txtLog);
 
-        _progressBar.Location = new Point(20, 631);
+        _progressBar.Location = new Point(20, 472);
         _progressBar.Size = new Size(720, 18);
         _progressBar.Minimum = 0;
         _progressBar.Maximum = 100;
@@ -233,10 +240,33 @@ internal sealed class MainForm : Form
         Controls.Add(_progressBar);
 
         _status.Text = "Ready.";
-        _status.Location = new Point(20, 655);
+        _status.Location = new Point(20, 496);
         _status.Size = new Size(720, 20);
         _status.AutoEllipsis = true;
         Controls.Add(_status);
+    }
+
+    private void ToggleDetails()
+    {
+        _detailsVisible = !_detailsVisible;
+        _txtLog.Visible = _detailsVisible;
+        _btnDetails.Text = _detailsVisible
+            ? "Hide details"
+            : "Details";
+
+        _progressBar.Location = new Point(
+            20,
+            _detailsVisible ? 631 : 472);
+        _status.Location = new Point(
+            20,
+            _detailsVisible ? 655 : 496);
+
+        var targetHeight = _detailsVisible
+            ? 714
+            : 560;
+
+        MinimumSize = new Size(780, targetHeight);
+        Height = targetHeight;
     }
 
     private void BuildMainMenu()
