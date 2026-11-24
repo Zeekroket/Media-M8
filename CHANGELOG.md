@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Made playlist downloads explicit and safe: detected playlists now offer This item only or Entire playlist, with single-item download preferred where available.
+- Kept Download playlist as an explicit option, but changed its default to off to avoid accidental full-playlist downloads.
 - Hid the technical log behind an optional Details control so the normal window stays focused on status and progress.
 - Reordered the quality controls to Audio quality → Video quality and made both quality lists run from Best to lower quality.
 
