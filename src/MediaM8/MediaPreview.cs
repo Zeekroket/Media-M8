@@ -198,7 +198,7 @@ internal static class MediaPreviewLoader
             duration,
             playlistCount,
             isPlaylist,
-            CanDownloadSingleItem: !isPlaylist,
+            !isPlaylist,
             thumbnailUrl);
     }
 
