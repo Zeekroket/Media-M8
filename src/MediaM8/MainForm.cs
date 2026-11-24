@@ -31,9 +31,7 @@ internal sealed class MainForm : Form
     private readonly RadioButton _radioVideo = new();
     private readonly ComboBox _cmbVideoQuality = new();
     private readonly ComboBox _cmbAudioQuality = new();
-    private readonly GroupBox _playlistChoiceGroup = new();
-    private readonly RadioButton _radioSingleItem = new();
-    private readonly RadioButton _radioEntirePlaylist = new();
+    private readonly CheckBox _chkPlaylist = new();
     private readonly CheckBox _chkArchive = new();
     private readonly CheckBox _chkOpenFolder = new();
     private readonly Button _btnBrowse = new();
@@ -62,7 +60,6 @@ internal sealed class MainForm : Form
         "preparing");
     private bool _isBusy;
     private bool _detailsVisible;
-    private bool _singlePlaylistItemAvailable;
 
     public MainForm(SessionLogger logger)
     {
@@ -183,24 +180,15 @@ internal sealed class MainForm : Form
         _btnBrowse.Click += BrowseButton_Click;
         Controls.Add(_btnBrowse);
 
-        _playlistChoiceGroup.Text = "Playlist found";
-        _playlistChoiceGroup.Location = new Point(20, 329);
-        _playlistChoiceGroup.Size = new Size(720, 62);
-        _playlistChoiceGroup.Visible = false;
-        Controls.Add(_playlistChoiceGroup);
-
-        _radioSingleItem.Text = "This item only";
-        _radioSingleItem.Location = new Point(20, 26);
-        _radioSingleItem.AutoSize = true;
-        _playlistChoiceGroup.Controls.Add(_radioSingleItem);
-
-        _radioEntirePlaylist.Text = "Entire playlist";
-        _radioEntirePlaylist.Location = new Point(180, 26);
-        _radioEntirePlaylist.AutoSize = true;
-        _playlistChoiceGroup.Controls.Add(_radioEntirePlaylist);
+        _chkPlaylist.Text = "Download playlist";
+        _chkPlaylist.Location = new Point(20, 339);
+        _chkPlaylist.AutoSize = true;
+        _chkPlaylist.Checked = false;
+        _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
+        Controls.Add(_chkPlaylist);
 
         _chkArchive.Text = "Skip previously downloaded items (downloaded.txt)";
-        _chkArchive.Location = new Point(20, 339);
+        _chkArchive.Location = new Point(200, 339);
         _chkArchive.AutoSize = true;
         _chkArchive.Checked = true;
         Controls.Add(_chkArchive);
@@ -266,45 +254,16 @@ internal sealed class MainForm : Form
             ? "Hide details"
             : "Details";
 
-        UpdateMainLayout();
-    }
-
-    private void UpdateMainLayout()
-    {
-        var playlistOffset = _playlistChoiceGroup.Visible
-            ? 66
-            : 0;
-
-        _chkArchive.Location = new Point(
-            20,
-            339 + playlistOffset);
-        _chkOpenFolder.Location = new Point(
-            560,
-            339 + playlistOffset);
-
-        _btnDownload.Location = new Point(
-            20,
-            374 + playlistOffset);
-        _btnStop.Location = new Point(
-            610,
-            374 + playlistOffset);
-        _btnDetails.Location = new Point(
-            20,
-            430 + playlistOffset);
-        _txtLog.Location = new Point(
-            20,
-            467 + playlistOffset);
-
         _progressBar.Location = new Point(
             20,
-            (_detailsVisible ? 631 : 472) + playlistOffset);
+            _detailsVisible ? 631 : 472);
         _status.Location = new Point(
             20,
-            (_detailsVisible ? 655 : 496) + playlistOffset);
+            _detailsVisible ? 655 : 496);
 
-        var targetHeight =
-            (_detailsVisible ? 714 : 560) +
-            playlistOffset;
+        var targetHeight = _detailsVisible
+            ? 714
+            : 560;
 
         MinimumSize = new Size(780, targetHeight);
         Height = targetHeight;
@@ -929,6 +888,7 @@ internal sealed class MainForm : Form
             var preview = await MediaPreviewLoader.LoadAsync(
                 runtimeTools.YtDlp,
                 url,
+                _chkPlaylist.Checked,
                 IsYouTubeUrl(url),
                 runtimeTools.Deno,
                 cancellation.Token);
@@ -964,7 +924,6 @@ internal sealed class MainForm : Form
     {
         _previewTitle.Text = string.Empty;
         _previewInfo.Text = string.Empty;
-        ResetPlaylistChoice();
 
         var oldImage = _previewThumbnail.Image;
         _previewThumbnail.Image = null;
@@ -984,58 +943,18 @@ internal sealed class MainForm : Form
             parts.Add(preview.Uploader);
         }
 
-        if (preview.Duration is not null)
+        if (preview.IsPlaylist)
+        {
+            parts.Add(preview.PlaylistCount is > 0
+                ? $"{preview.PlaylistCount} items"
+                : "Playlist");
+        }
+        else if (preview.Duration is not null)
         {
             parts.Add(FormatDuration(preview.Duration.Value));
         }
 
-        if (preview.IsPlaylist)
-        {
-            parts.Add(preview.PlaylistCount is > 0
-                ? $"Playlist · {preview.PlaylistCount} items"
-                : "Playlist");
-        }
-
         _previewInfo.Text = string.Join(" · ", parts);
-        ShowPlaylistChoice(preview);
-    }
-
-    private void ShowPlaylistChoice(MediaPreviewInfo preview)
-    {
-        if (!preview.IsPlaylist)
-        {
-            ResetPlaylistChoice();
-            return;
-        }
-
-        _singlePlaylistItemAvailable =
-            preview.CanDownloadSingleItem;
-
-        _radioSingleItem.Text = "This item only";
-        _radioSingleItem.Enabled =
-            !_isBusy &&
-            _singlePlaylistItemAvailable;
-        _radioSingleItem.Checked =
-            _singlePlaylistItemAvailable;
-
-        _radioEntirePlaylist.Text =
-            preview.PlaylistCount is > 0
-                ? $"Entire playlist ({preview.PlaylistCount} items)"
-                : "Entire playlist";
-        _radioEntirePlaylist.Enabled = !_isBusy;
-        _radioEntirePlaylist.Checked = false;
-
-        _playlistChoiceGroup.Visible = true;
-        UpdateMainLayout();
-    }
-
-    private void ResetPlaylistChoice()
-    {
-        _singlePlaylistItemAvailable = false;
-        _radioSingleItem.Checked = false;
-        _radioEntirePlaylist.Checked = false;
-        _playlistChoiceGroup.Visible = false;
-        UpdateMainLayout();
     }
 
     private async Task LoadPreviewThumbnailAsync(
@@ -1223,28 +1142,12 @@ internal sealed class MainForm : Form
             return;
         }
 
-        if (_playlistChoiceGroup.Visible &&
-            !_radioSingleItem.Checked &&
-            !_radioEntirePlaylist.Checked)
-        {
-            MessageBox.Show(
-                this,
-                _singlePlaylistItemAvailable
-                    ? "Choose whether to download this item or the entire playlist."
-                    : "Choose Entire playlist to download this playlist.",
-                "Choose what to download",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
-        }
-
         var displayName = GetCurrentQueueDisplayName(url);
         var request = new DownloadRequest(
             url,
             displayName,
             folder,
-            _playlistChoiceGroup.Visible &&
-            _radioEntirePlaylist.Checked,
+            _chkPlaylist.Checked,
             _chkArchive.Checked,
             _chkOpenFolder.Checked,
             _radioMp3.Checked,
@@ -2242,13 +2145,7 @@ internal sealed class MainForm : Form
         _txtFolder.Enabled = !busy;
         _radioMp3.Enabled = !busy;
         _radioVideo.Enabled = !busy;
-        _radioSingleItem.Enabled =
-            !busy &&
-            _playlistChoiceGroup.Visible &&
-            _singlePlaylistItemAvailable;
-        _radioEntirePlaylist.Enabled =
-            !busy &&
-            _playlistChoiceGroup.Visible;
+        _chkPlaylist.Enabled = !busy;
         _chkArchive.Enabled = !busy;
         _chkOpenFolder.Enabled = !busy;
 
