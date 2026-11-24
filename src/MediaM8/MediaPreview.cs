@@ -10,70 +10,11 @@ internal sealed record MediaPreviewInfo(
     TimeSpan? Duration,
     int? PlaylistCount,
     bool IsPlaylist,
-    bool CanDownloadSingleItem,
     string? ThumbnailUrl);
 
 internal static class MediaPreviewLoader
 {
     public static async Task<MediaPreviewInfo> LoadAsync(
-        string ytDlpPath,
-        string sourceUrl,
-        bool isYouTube,
-        string denoPath,
-        CancellationToken cancellationToken)
-    {
-        var playlistAwarePreview = await LoadCoreAsync(
-            ytDlpPath,
-            sourceUrl,
-            downloadPlaylist: true,
-            isYouTube,
-            denoPath,
-            cancellationToken);
-
-        if (!playlistAwarePreview.IsPlaylist)
-        {
-            return playlistAwarePreview with
-            {
-                CanDownloadSingleItem = true
-            };
-        }
-
-        try
-        {
-            var singleItemPreview = await LoadCoreAsync(
-                ytDlpPath,
-                sourceUrl,
-                downloadPlaylist: false,
-                isYouTube,
-                denoPath,
-                cancellationToken);
-
-            if (!singleItemPreview.IsPlaylist)
-            {
-                return singleItemPreview with
-                {
-                    PlaylistCount = playlistAwarePreview.PlaylistCount,
-                    IsPlaylist = true,
-                    CanDownloadSingleItem = true
-                };
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            // A direct playlist URL may not have a single item to preview.
-        }
-
-        return playlistAwarePreview with
-        {
-            CanDownloadSingleItem = false
-        };
-    }
-
-    private static async Task<MediaPreviewInfo> LoadCoreAsync(
         string ytDlpPath,
         string sourceUrl,
         bool downloadPlaylist,
@@ -198,7 +139,6 @@ internal static class MediaPreviewLoader
             duration,
             playlistCount,
             isPlaylist,
-            !isPlaylist,
             thumbnailUrl);
     }
 
