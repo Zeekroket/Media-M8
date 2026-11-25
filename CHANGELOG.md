@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Windows installer with Start menu integration and uninstall support, alongside the separately named portable ZIP.
+
 - Retry failed or stopped queue items with their original settings and reorder pending downloads using Move up and Move down.
 
 - Show a clear completed download or queue result and offer Open folder for the last completed download.
