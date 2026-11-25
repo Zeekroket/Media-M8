@@ -22,6 +22,7 @@ internal sealed class MainForm : Form
     private readonly ToolStripMenuItem _lightThemeItem = new("Light");
     private readonly ToolStripMenuItem _darkThemeItem = new("Dark");
     private readonly TextBox _txtUrl = new();
+    private readonly Button _btnPaste = new();
     private readonly GroupBox _previewGroup = new();
     private readonly PictureBox _previewThumbnail = new();
     private readonly Label _previewTitle = new();
@@ -99,9 +100,15 @@ internal sealed class MainForm : Form
         Controls.Add(NewLabel("Link to download", 20, 44));
 
         _txtUrl.Location = new Point(20, 67);
-        _txtUrl.Size = new Size(720, 25);
+        _txtUrl.Size = new Size(625, 25);
         _txtUrl.TextChanged += UrlTextBox_TextChanged;
         Controls.Add(_txtUrl);
+
+        _btnPaste.Text = "Paste";
+        _btnPaste.Location = new Point(655, 65);
+        _btnPaste.Size = new Size(85, 29);
+        _btnPaste.Click += (_, _) => PasteLinkFromClipboard();
+        Controls.Add(_btnPaste);
 
         _previewGroup.Text = "Preview";
         _previewGroup.Location = new Point(20, 102);
@@ -848,6 +855,53 @@ internal sealed class MainForm : Form
             Location = new Point(x, y),
             Size = new Size(width, height)
         };
+    }
+
+    private void PasteLinkFromClipboard()
+    {
+        try
+        {
+            if (!Clipboard.ContainsText())
+            {
+                MessageBox.Show(
+                    this,
+                    "The clipboard does not contain text to paste.",
+                    AppInfo.Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            var text = Clipboard.GetText().Trim();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                MessageBox.Show(
+                    this,
+                    "The clipboard does not contain text to paste.",
+                    AppInfo.Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            _txtUrl.Text = text;
+            _txtUrl.Focus();
+            _txtUrl.SelectionStart = _txtUrl.TextLength;
+        }
+        catch (Exception ex)
+        {
+            _logger.Write(
+                $"Could not read text from the clipboard: {ex}",
+                "ERROR");
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not paste from the clipboard. Try copying the link again.",
+                AppInfo.Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
     }
 
     private async void UrlTextBox_TextChanged(object? sender, EventArgs e)
