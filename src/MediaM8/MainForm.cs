@@ -113,6 +113,8 @@ internal sealed class MainForm : Form
         }
 
         BuildUi();
+        ConfigureKeyboardNavigation();
+        WindowLayout.Prepare(this);
         _downloadQueue.Changed += DownloadQueue_Changed;
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         ApplyCurrentTheme();
@@ -312,6 +314,36 @@ internal sealed class MainForm : Form
         Controls.Add(_status);
     }
 
+    private void ConfigureKeyboardNavigation()
+    {
+        _txtUrl.AccessibleName = "Link to download";
+        _txtFolder.AccessibleName = "Save to";
+        _cmbAudioQuality.AccessibleName = "Audio quality";
+        _cmbVideoQuality.AccessibleName = "Video quality";
+        _txtLog.AccessibleName = "Technical download log";
+        _progressBar.AccessibleName = "Download progress";
+        _status.AccessibleName = "Download status";
+        _previewGroup.TabStop = false;
+        _txtUrl.TabIndex = 0;
+        _btnPaste.TabIndex = 1;
+        _radioMp3.Parent!.TabIndex = 2;
+        _radioMp3.TabIndex = 0;
+        _radioVideo.TabIndex = 1;
+        _cmbAudioQuality.Parent!.TabIndex = 3;
+        _cmbVideoQuality.Parent!.TabIndex = 4;
+        _txtFolder.TabIndex = 5;
+        _btnBrowse.TabIndex = 6;
+        _chkPlaylist.TabIndex = 7;
+        _chkArchive.TabIndex = 8;
+        _chkOpenFolder.TabIndex = 9;
+        _btnDownload.TabIndex = 10;
+        _btnStop.TabIndex = 11;
+        _btnDetails.TabIndex = 12;
+        _btnOpenCompletedFolder.TabIndex = 13;
+        _txtLog.TabIndex = 14;
+        Shown += (_, _) => _txtUrl.Focus();
+    }
+
     private void ToggleDetails()
     {
         _detailsVisible = !_detailsVisible;
@@ -320,19 +352,19 @@ internal sealed class MainForm : Form
             ? "Hide details"
             : "Details";
 
-        _progressBar.Location = new Point(
-            20,
-            _detailsVisible ? 631 : 472);
-        _status.Location = new Point(
-            20,
-            _detailsVisible ? 655 : 496);
+        AutoScrollPosition = new Point(0, 0);
+        _progressBar.Location = WindowLayout.Point(this,
+            20, _detailsVisible ? 631 : 472);
+        _status.Location = WindowLayout.Point(this,
+            20, _detailsVisible ? 655 : 496);
 
         var targetHeight = _detailsVisible
             ? 714
             : 560;
 
-        MinimumSize = new Size(780, targetHeight);
-        Height = targetHeight;
+        MinimumSize = WindowLayout.Size(this, 780, targetHeight);
+        Height = WindowLayout.Pixels(this, targetHeight);
+        WindowLayout.FitToScreen(this);
     }
 
     private void BuildMainMenu()
@@ -1374,17 +1406,17 @@ internal sealed class MainForm : Form
     {
         if (thumbnailVisible)
         {
-            _previewTitle.Location = new Point(100, 18);
-            _previewTitle.Size = new Size(605, 20);
-            _previewInfo.Location = new Point(100, 38);
-            _previewInfo.Size = new Size(605, 18);
+            _previewTitle.Location = WindowLayout.Point(_previewGroup, 100, 18);
+            _previewTitle.Size = WindowLayout.Size(_previewGroup, 605, 20);
+            _previewInfo.Location = WindowLayout.Point(_previewGroup, 100, 38);
+            _previewInfo.Size = WindowLayout.Size(_previewGroup, 605, 18);
         }
         else
         {
-            _previewTitle.Location = new Point(15, 18);
-            _previewTitle.Size = new Size(690, 20);
-            _previewInfo.Location = new Point(15, 38);
-            _previewInfo.Size = new Size(690, 18);
+            _previewTitle.Location = WindowLayout.Point(_previewGroup, 15, 18);
+            _previewTitle.Size = WindowLayout.Size(_previewGroup, 690, 20);
+            _previewInfo.Location = WindowLayout.Point(_previewGroup, 15, 38);
+            _previewInfo.Size = WindowLayout.Size(_previewGroup, 690, 18);
         }
     }
 
@@ -2523,6 +2555,7 @@ internal sealed class MainForm : Form
 
         ThemeManager.Apply(dialog);
 
+        WindowLayout.Prepare(dialog);
         return dialog.ShowDialog(this) == DialogResult.OK;
     }
 
