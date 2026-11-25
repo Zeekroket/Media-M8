@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Prevent the expanded download-tool details area from overlapping its buttons.
 - Stop and reset the progress indicator when a download fails.
 
 ### Changed
