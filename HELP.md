@@ -28,7 +28,9 @@ You can check or refresh these components later through **Tools → Check downlo
 6. Check the **Save to** folder.
 7. Click **DOWNLOAD**.
 
-Media M8 shows progress at the bottom of the window.
+Media M8 shows progress at the bottom of the window. After a successful download, **Download completed.** remains visible and **Open folder** opens the folder used for that download.
+
+When several downloads run in the queue, the final status shows the results. **Open folder** opens the folder of the last completed download. **Open folder when finished** still opens the folder automatically if selected.
 
 ## Playlists
 
