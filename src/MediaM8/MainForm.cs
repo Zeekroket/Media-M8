@@ -1535,6 +1535,10 @@ internal sealed class MainForm : Form
             _logger.Write(
                 $"Download failed: {ex}",
                 "ERROR");
+
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Value = 0;
             _status.Text = failure.Status;
 
             FriendlyErrorDialog.Show(
