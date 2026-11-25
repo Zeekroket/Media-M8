@@ -84,6 +84,7 @@ internal sealed class MainForm : Form
         "preparing");
     private bool _isBusy;
     private bool _setupInProgress;
+    private bool _applicationUpdateInProgress;
     private bool _detailsVisible;
     private string? _completedFolder;
 
@@ -433,14 +434,11 @@ internal sealed class MainForm : Form
             ShortcutKeyDisplayString = "F1"
         };
         _checkUpdatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
-        _updateNoticeItem.Click += (_, _) =>
+        _updateNoticeItem.Click += async (_, _) =>
         {
-            if (_availableUpdate is { } result &&
-                result.LatestVersion is { } version &&
-                !string.IsNullOrWhiteSpace(result.ReleaseUrl))
+            if (_availableUpdate is { } result)
             {
-                UpdateResultDialog.ShowNewVersion(
-                    this, result.InstalledVersion, version, result.ReleaseUrl);
+                await ShowAvailableUpdateAsync(result);
             }
         };
 
@@ -916,11 +914,7 @@ internal sealed class MainForm : Form
                             "The update result did not contain release details.");
                     }
 
-                    UpdateResultDialog.ShowNewVersion(
-                        this,
-                        result.InstalledVersion,
-                        result.LatestVersion,
-                        result.ReleaseUrl);
+                    await ShowAvailableUpdateAsync(result);
                     break;
             }
         }
@@ -960,6 +954,90 @@ internal sealed class MainForm : Form
                     _status.Text = previousStatus;
                 }
             }
+        }
+    }
+
+    private async Task ShowAvailableUpdateAsync(UpdateCheckResult result)
+    {
+        if (_applicationUpdateInProgress ||
+            result.LatestVersion is not { } version ||
+            string.IsNullOrWhiteSpace(result.ReleaseUrl))
+        {
+            return;
+        }
+
+        if (!UpdateResultDialog.ShowNewVersion(
+            this, result.InstalledVersion, version, result.ReleaseUrl))
+        {
+            return;
+        }
+
+        if (_isBusy || _queueWorkerRunning || _downloadQueue.PendingCount > 0)
+        {
+            MessageBox.Show(this,
+                "Finish or remove your queued downloads before updating Media M8.",
+                "Update unavailable", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _queueWindow?.Close();
+        var previousStatus = _status.Text;
+        _applicationUpdateInProgress = true;
+        SetUiBusy(true);
+        _btnPaste.Enabled = false;
+        _mainMenu.Enabled = false;
+        _status.Text = "Downloading and verifying update...";
+        _progressBar.Style = ProgressBarStyle.Marquee;
+        _progressBar.MarqueeAnimationSpeed = 30;
+        PreparedApplicationUpdate? update = null;
+        var handedOff = false;
+
+        try
+        {
+            update = await ApplicationUpdater.DownloadAsync(version, _updateCancellation.Token);
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.Value = 100;
+            _status.Text = "Update downloaded and verified.";
+
+            var message = AppPaths.IsPortable
+                ? $"Media M8 {version} is ready. Close Media M8, apply the update and restart? Your tools, logs and settings will be kept."
+                : $"Media M8 {version} is ready. Close Media M8 and open the Windows installer? Follow the installer to complete the update.";
+            if (MessageBox.Show(this, message, "Update ready",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+            {
+                return;
+            }
+
+            ApplicationUpdater.Launch(update);
+            handedOff = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Write($"Application update failed: {ex}", "UPDATE");
+            MessageBox.Show(this,
+                "Media M8 could not prepare the update. Your existing application has not been replaced. Try again later or open the release page.\n\n" + ex.Message,
+                "Update failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (!handedOff && update is not null)
+            {
+                ApplicationUpdater.Cleanup(update.Directory);
+            }
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.Value = 0;
+            _applicationUpdateInProgress = false;
+            SetUiBusy(false);
+            _btnPaste.Enabled = true;
+            _mainMenu.Enabled = true;
+            _status.Text = previousStatus;
+        }
+
+        if (handedOff)
+        {
+            Close();
         }
     }
 
@@ -2513,7 +2591,7 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_setupInProgress && e.CloseReason == CloseReason.UserClosing)
+        if ((_setupInProgress || _applicationUpdateInProgress) && e.CloseReason == CloseReason.UserClosing)
         {
             e.Cancel = true;
             return;
