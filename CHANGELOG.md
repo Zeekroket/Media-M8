@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Added a Paste button next to the download link field for one-click clipboard input.
 - C#/.NET 10 Windows Forms application replacing the PowerShell proof-of-concept runtime.
 - Self-contained single-file win-x64 publishing so end users do not need PowerShell or a separate .NET runtime.
 - Direct process execution for yt-dlp from the application.
