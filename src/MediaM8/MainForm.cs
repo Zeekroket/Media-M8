@@ -61,6 +61,7 @@ internal sealed class MainForm : Form
         null,
         "preparing");
     private bool _isBusy;
+    private bool _setupInProgress;
     private bool _detailsVisible;
     private string? _completedFolder;
 
@@ -93,6 +94,7 @@ internal sealed class MainForm : Form
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         ApplyCurrentTheme();
         FormClosing += MainForm_FormClosing;
+        Shown += async (_, _) => await EnsureFirstRunSetupAsync();
     }
 
     private void BuildUi()
@@ -1214,6 +1216,11 @@ internal sealed class MainForm : Form
             return;
         }
 
+        if (!_queueWorkerRunning && !await EnsureFirstRunSetupAsync())
+        {
+            return;
+        }
+
         var displayName = GetCurrentQueueDisplayName(url);
         var request = new DownloadRequest(
             url,
@@ -1425,69 +1432,12 @@ internal sealed class MainForm : Form
 
         if (missingTools.Count > 0)
         {
-            if (!ShowInstallPrompt(missingTools))
+            if (!await EnsureFirstRunSetupAsync())
             {
-                _status.Text = "Required tools are missing.";
                 return DownloadQueueState.Failed;
             }
 
-            AddUiLog(
-                "Installing required tools from official project releases...");
-            _status.Text = "Installing required tools...";
-            SetUiBusy(true);
-
-            try
-            {
-                var progress = new Progress<string>(AddUiLog);
-
-                await RuntimeToolManager.InstallMissingToolsAsync(
-                    toolsDirectory,
-                    _logger,
-                    progress,
-                    CancellationToken.None);
-
-                runtimeTools = RuntimeToolManager.GetToolPaths(
-                    toolsDirectory);
-                missingTools = RuntimeToolManager.GetMissingTools(
-                    runtimeTools);
-
-                if (missingTools.Count > 0)
-                {
-                    throw new InvalidOperationException(
-                        "One or more required tools are still unavailable: " +
-                        string.Join(", ", missingTools));
-                }
-
-                _status.Text = "Required tools installed.";
-            }
-            catch (Exception ex)
-            {
-                AddUiLog(
-                    $"Tool installation failed: {ex.Message}");
-                _logger.Write(
-                    $"Tool installation failed: {ex}",
-                    "ERROR");
-                _status.Text = "Tool installation failed.";
-
-                MessageBox.Show(
-                    this,
-                    "Media M8 could not install the required tools." +
-                    Environment.NewLine +
-                    Environment.NewLine +
-                    ex.Message +
-                    Environment.NewLine +
-                    Environment.NewLine +
-                    $"Session log: {_logger.LogFilePath}",
-                    "Tool installation failed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-
-                return DownloadQueueState.Failed;
-            }
-            finally
-            {
-                SetUiBusy(false);
-            }
+            runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
         }
 
         if (runtimeTools.YtDlp is null ||
@@ -2097,11 +2047,93 @@ internal sealed class MainForm : Form
         return value?.ToString() ?? string.Empty;
     }
 
+    private async Task<bool> EnsureFirstRunSetupAsync()
+    {
+        var toolsDirectory = Path.Combine(AppContext.BaseDirectory, "tools");
+        var missingTools = RuntimeToolManager.GetMissingTools(
+            RuntimeToolManager.GetToolPaths(toolsDirectory));
+
+        if (missingTools.Count == 0)
+        {
+            return true;
+        }
+
+        if (_setupInProgress)
+        {
+            return false;
+        }
+
+        if (!ShowInstallPrompt(missingTools))
+        {
+            _status.Text = "Setup needed. Click DOWNLOAD to try again.";
+            return false;
+        }
+
+        _setupInProgress = true;
+        SetUiBusy(true);
+        _btnPaste.Enabled = false;
+        _mainMenu.Enabled = false;
+        _status.Text = "Setting up Media M8...";
+        _progressBar.Style = ProgressBarStyle.Marquee;
+        _progressBar.MarqueeAnimationSpeed = 30;
+
+        AddUiLog("Installing required tools from official project releases...");
+
+        try
+        {
+            var progress = new Progress<string>(AddUiLog);
+
+            await RuntimeToolManager.InstallMissingToolsAsync(
+                toolsDirectory,
+                _logger,
+                progress,
+                CancellationToken.None);
+
+            missingTools = RuntimeToolManager.GetMissingTools(
+                RuntimeToolManager.GetToolPaths(toolsDirectory));
+
+            if (missingTools.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "One or more required tools are still unavailable: " +
+                    string.Join(", ", missingTools));
+            }
+
+            _status.Text = "Setup complete. Ready to download.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AddUiLog($"Tool installation failed: {ex.Message}");
+            _logger.Write($"Tool installation failed: {ex}", "ERROR");
+            _status.Text = "Setup failed. Click DOWNLOAD to try again.";
+
+            MessageBox.Show(
+                this,
+                "Media M8 could not complete setup. Check your internet connection and try again. More information is available under Details.",
+                "Setup failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
+            return false;
+        }
+        finally
+        {
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.Value = 0;
+            _setupInProgress = false;
+            SetUiBusy(false);
+            _btnPaste.Enabled = true;
+            _mainMenu.Enabled = true;
+        }
+    }
+
     private bool ShowInstallPrompt(IReadOnlyList<string> missingTools)
     {
         using var dialog = new Form
         {
-            Text = "Media M8 needs a quick setup",
+            Text = "Set up Media M8",
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
@@ -2116,7 +2148,7 @@ internal sealed class MainForm : Form
             Location = new Point(20, 18),
             Size = new Size(460, 28),
             Font = new Font("Segoe UI", 11f, FontStyle.Bold),
-            Text = "A few download components are needed."
+            Text = "Get Media M8 ready to download"
         };
         dialog.Controls.Add(heading);
 
@@ -2125,13 +2157,13 @@ internal sealed class MainForm : Form
             Location = new Point(20, 55),
             Size = new Size(460, 105),
             Text =
-                "Media M8 uses these components to download and convert media." +
+                "Media M8 needs a few supporting components before you can download music or videos." +
                 Environment.NewLine +
                 Environment.NewLine +
-                "They are downloaded from their official project release sources and verified before Media M8 uses them." +
+                "Click Set up to download and verify them automatically. You only need to do this once, unless components are removed." +
                 Environment.NewLine +
                 Environment.NewLine +
-                "Media M8 can install the missing components for you now."
+                "This requires an internet connection."
         };
         dialog.Controls.Add(label);
 
@@ -2169,7 +2201,7 @@ internal sealed class MainForm : Form
 
         var installButton = new Button
         {
-            Text = "Install",
+            Text = "Set up",
             Location = new Point(310, 205),
             Size = new Size(80, 30),
             DialogResult = DialogResult.OK
@@ -2263,6 +2295,12 @@ internal sealed class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        if (_setupInProgress && e.CloseReason == CloseReason.UserClosing)
+        {
+            e.Cancel = true;
+            return;
+        }
+
         ThemeManager.ThemeChanged -= ThemeManager_ThemeChanged;
         _downloadQueue.Changed -= DownloadQueue_Changed;
 
