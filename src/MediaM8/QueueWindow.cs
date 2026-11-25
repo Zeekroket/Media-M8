@@ -25,7 +25,7 @@ internal sealed class QueueWindow : Form
 
         Text = "Media M8 Queue";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(720, 420);
+        ClientSize = new Size(705, 381);
         MinimumSize = new Size(620, 340);
         Font = new Font("Segoe UI", 9f);
 
