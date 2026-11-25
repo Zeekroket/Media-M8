@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace MediaM8;
@@ -28,6 +29,14 @@ internal sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer _updateTimer =
         new() { Interval = 30_000 };
     private readonly CancellationTokenSource _updateCancellation = new();
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromDays(7);
+    private static string UpdateCachePath =>
+        Path.Combine(AppPaths.DataDirectory, "update-check.json");
+    private DateTimeOffset? _lastSuccessfulUpdateCheckUtc;
+    private sealed record UpdateCheckCache(
+        DateTimeOffset CheckedAtUtc,
+        UpdateCheckResult Result);
+
     private bool _updateCheckInProgress;
     private UpdateCheckResult? _availableUpdate;
     private readonly ToolStripMenuItem _matchSystemThemeItem =
@@ -109,11 +118,18 @@ internal sealed class MainForm : Form
         FormClosing += MainForm_FormClosing;
         _updateTimer.Tick += async (_, _) =>
         {
-            _updateTimer.Interval = (int)TimeSpan.FromHours(6).TotalMilliseconds;
+            _updateTimer.Stop();
             await CheckForUpdatesInBackgroundAsync();
+
+            if (!IsDisposed && !Disposing && !_updateCancellation.IsCancellationRequested)
+            {
+                ScheduleNextUpdateCheck();
+                _updateTimer.Start();
+            }
         };
         Shown += async (_, _) =>
         {
+            RestoreUpdateCheckCache();
             await EnsureFirstRunSetupAsync();
             if (!IsDisposed && !Disposing)
             {
@@ -716,9 +732,92 @@ internal sealed class MainForm : Form
         _updateNoticeItem.Available = _availableUpdate is not null;
     }
 
+    private bool IsAutomaticUpdateCheckDue()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return _lastSuccessfulUpdateCheckUtc is not { } last ||
+               last > now ||
+               now - last >= UpdateCheckInterval;
+    }
+
+    private void ScheduleNextUpdateCheck()
+    {
+        var delay = UpdateCheckInterval;
+        if (!IsAutomaticUpdateCheckDue() &&
+            _lastSuccessfulUpdateCheckUtc is { } last)
+        {
+            delay = last + UpdateCheckInterval - DateTimeOffset.UtcNow;
+        }
+
+        _updateTimer.Interval = (int)Math.Clamp(
+            delay.TotalMilliseconds, 1d, UpdateCheckInterval.TotalMilliseconds);
+    }
+
+    private void RestoreUpdateCheckCache()
+    {
+        try
+        {
+            if (!File.Exists(UpdateCachePath))
+            {
+                return;
+            }
+
+            var cache = JsonSerializer.Deserialize<UpdateCheckCache>(
+                File.ReadAllText(UpdateCachePath));
+            if (cache is null || cache.Result is null ||
+                cache.CheckedAtUtc > DateTimeOffset.UtcNow)
+            {
+                return;
+            }
+
+            _lastSuccessfulUpdateCheckUtc = cache.CheckedAtUtc;
+
+            var installed = Version.Parse(AppInfo.Version);
+            var availability = cache.Result.LatestVersion is { } latest
+                ? latest > installed
+                    ? UpdateAvailability.NewVersionAvailable
+                    : UpdateAvailability.UpToDate
+                : UpdateAvailability.NoPublishedRelease;
+
+            UpdateAvailableNotice(cache.Result with
+            {
+                InstalledVersion = installed,
+                Availability = availability
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Write($"Could not read update check cache: {ex}", "UPDATE");
+        }
+    }
+
+    private void RememberSuccessfulUpdateCheck(UpdateCheckResult result)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _lastSuccessfulUpdateCheckUtc = now;
+
+        try
+        {
+            Directory.CreateDirectory(AppPaths.DataDirectory);
+            File.WriteAllText(
+                UpdateCachePath,
+                JsonSerializer.Serialize(new UpdateCheckCache(now, result)));
+        }
+        catch (Exception ex)
+        {
+            _logger.Write($"Could not save update check cache: {ex}", "UPDATE");
+        }
+
+        if (_updateTimer.Enabled)
+        {
+            ScheduleNextUpdateCheck();
+        }
+    }
+
     private async Task CheckForUpdatesInBackgroundAsync()
     {
-        if (_updateCheckInProgress || IsDisposed || Disposing)
+        if (_updateCheckInProgress || IsDisposed || Disposing ||
+            !IsAutomaticUpdateCheckDue())
         {
             return;
         }
@@ -733,6 +832,7 @@ internal sealed class MainForm : Form
 
             if (!cancellationToken.IsCancellationRequested && !IsDisposed && !Disposing)
             {
+                RememberSuccessfulUpdateCheck(result);
                 UpdateAvailableNotice(result);
             }
         }
@@ -779,6 +879,7 @@ internal sealed class MainForm : Form
                 return;
             }
 
+            RememberSuccessfulUpdateCheck(result);
             UpdateAvailableNotice(result);
 
             switch (result.Availability)
