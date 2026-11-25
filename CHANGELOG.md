@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Guided application updates with mode-specific verified packages, explicit confirmation, and portable executable replacement without replacing local data.
+
 - Quiet automatic checks for stable application updates, with a menu-bar notification when a newer version is available.
 
 - Windows installer with Start menu integration and uninstall support, alongside the separately named portable ZIP.
