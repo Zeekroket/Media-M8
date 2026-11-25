@@ -4,11 +4,13 @@ using Microsoft.Win32;
 
 namespace MediaM8;
 
-// Coordinates in the existing forms are authored at 96 DPI.
-// System-aware WinForms controls render text at the actual system DPI.
+// All layout coordinates are authored at 96 DPI.
 internal static class WindowLayout
 {
     private static readonly float TextScale = ReadTextScale();
+
+    private sealed record LogicalControl(
+        Control Control, Rectangle Bounds, Font Font, LogicalControl[] Children);
 
     private static float ReadTextScale()
     {
@@ -40,32 +42,32 @@ internal static class WindowLayout
     public static Size Size(Control control, int width, int height) =>
         new(Pixels(control, width), Pixels(control, height));
 
-    public static void Prepare(Form form)
+    private static LogicalControl Capture(Control control) =>
+        new(control, control.Bounds, control.Font,
+            control.Controls.Cast<Control>().Select(Capture).ToArray());
+
+    public static void Prepare(Form form, bool minimumClientSize = false)
     {
         form.AutoScaleMode = AutoScaleMode.None;
+        // Capture the authored geometry before native handles and DPI-dependent
+        // layout can adjust it. Do not scale the already laid-out Form twice.
+        var logicalClientSize = form.ClientSize;
+        var logicalMinimum = form.MinimumSize;
+        var layout = Capture(form);
+
         form.Load += (_, _) =>
         {
+            var factor = Factor(form);
             form.SuspendLayout();
             try
             {
-                var factor = Factor(form);
-                if (Math.Abs(factor - 1f) > 0.001f)
-                {
-                    form.Scale(new SizeF(factor, factor));
-                }
+                form.MinimumSize = System.Drawing.Size.Empty;
+                form.ClientSize = Size(form, logicalClientSize.Width, logicalClientSize.Height);
+                ApplyLayout(layout, factor, isRoot: true);
 
-                if (TextScale > 1f)
-                {
-                    // Capture fonts before changing the parent's inherited font.
-                    var controls = new List<(Control Control, Font Font)>();
-                    CollectFonts(form, controls);
-                    foreach (var (control, font) in controls)
-                    {
-                        control.Font = new Font(
-                            font.FontFamily, font.SizeInPoints * TextScale,
-                            font.Style, GraphicsUnit.Point);
-                    }
-                }
+                form.MinimumSize = minimumClientSize
+                    ? form.Size
+                    : Size(form, logicalMinimum.Width, logicalMinimum.Height);
 
                 FitToScreen(form);
             }
@@ -76,49 +78,79 @@ internal static class WindowLayout
         };
     }
 
-    private static void CollectFonts(
-        Control control, List<(Control Control, Font Font)> fonts)
+    private static void ApplyLayout(LogicalControl logical, float factor, bool isRoot = false)
     {
-        fonts.Add((control, control.Font));
-        foreach (Control child in control.Controls)
+        var control = logical.Control;
+        control.SuspendLayout();
+        try
         {
-            CollectFonts(child, fonts);
+            if (TextScale > 1f)
+            {
+                control.Font = new Font(
+                    logical.Font.FontFamily, logical.Font.SizeInPoints * TextScale,
+                    logical.Font.Style, GraphicsUnit.Point);
+            }
+
+            if (!isRoot && control.Dock == DockStyle.None)
+            {
+                var b = logical.Bounds;
+                control.SetBounds(
+                    (int)Math.Round(b.X * factor),
+                    (int)Math.Round(b.Y * factor),
+                    (int)Math.Round(b.Width * factor),
+                    (int)Math.Round(b.Height * factor));
+            }
+
+            foreach (var child in logical.Children)
+            {
+                ApplyLayout(child, factor);
+            }
+        }
+        finally
+        {
+            control.ResumeLayout(false);
         }
     }
 
     public static void FitToScreen(Form form)
     {
         var area = Screen.FromControl(form).WorkingArea;
-        if (form.Width <= area.Width && form.Height <= area.Height)
+        if (form.Width > area.Width || form.Height > area.Height)
         {
-            return;
-        }
-
-        // Keep the content accessible when scaling exceeds the work area.
-        form.AutoScroll = true;
-        foreach (Control child in form.Controls)
-        {
-            if (child.Dock == DockStyle.None)
+            form.AutoScroll = true;
+            foreach (Control child in form.Controls)
             {
-                child.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+                if (child.Dock == DockStyle.None)
+                {
+                    child.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+                }
             }
+
+            form.MinimumSize = new Size(
+                Math.Min(form.MinimumSize.Width, area.Width),
+                Math.Min(form.MinimumSize.Height, area.Height));
+            form.Size = new Size(
+                Math.Min(form.Width, area.Width),
+                Math.Min(form.Height, area.Height));
         }
 
-        form.MinimumSize = new Size(
-            Math.Min(form.MinimumSize.Width, area.Width),
-            Math.Min(form.MinimumSize.Height, area.Height));
-        form.Size = new Size(
-            Math.Min(form.Width, area.Width),
-            Math.Min(form.Height, area.Height));
         form.Location = new Point(
             Math.Clamp(form.Left, area.Left, Math.Max(area.Left, area.Right - form.Width)),
             Math.Clamp(form.Top, area.Top, Math.Max(area.Top, area.Bottom - form.Height)));
     }
 
-    public static void SetClientSize(Form form, int width, int height)
+    public static void SetClientSize(Form form, int width, int height, bool minimumClientSize = false)
     {
-        form.AutoScrollPosition = Point(form, 0, 0);
+        form.AutoScrollPosition = new Point(0, 0);
+        if (minimumClientSize)
+        {
+            form.MinimumSize = System.Drawing.Size.Empty;
+        }
         form.ClientSize = Size(form, width, height);
+        if (minimumClientSize)
+        {
+            form.MinimumSize = form.Size;
+        }
         FitToScreen(form);
     }
 }
