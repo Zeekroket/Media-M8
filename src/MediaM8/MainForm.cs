@@ -114,6 +114,7 @@ internal sealed class MainForm : Form
         }
 
         BuildUi();
+        RestoreDownloadPreferences();
         ConfigureKeyboardNavigation();
         WindowLayout.Prepare(this, minimumClientSize: true);
         Load += (_, _) =>
@@ -320,6 +321,55 @@ internal sealed class MainForm : Form
         _status.Size = new Size(720, 20);
         _status.AutoEllipsis = true;
         Controls.Add(_status);
+    }
+
+    private void RestoreDownloadPreferences()
+    {
+        var folder = AppSettings.Read("DownloadFolder");
+        if (!string.IsNullOrWhiteSpace(folder) &&
+            Path.IsPathFullyQualified(folder) && Directory.Exists(folder))
+        {
+            _txtFolder.Text = folder;
+        }
+
+        var mode = AppSettings.Read("DownloadMode");
+        if (mode == "Video")
+        {
+            _radioVideo.Checked = true;
+        }
+        else
+        {
+            _radioMp3.Checked = true;
+        }
+
+        RestoreQuality(_cmbAudioQuality, AppSettings.Read("AudioQuality"));
+        RestoreQuality(_cmbVideoQuality, AppSettings.Read("VideoQuality"));
+        UpdateQualityControls();
+    }
+
+    private static void RestoreQuality(ComboBox combo, string? value)
+    {
+        if (value is not null && combo.Items.Contains(value))
+        {
+            combo.SelectedItem = value;
+        }
+    }
+
+    private void SaveDownloadPreferences()
+    {
+        var folder = _txtFolder.Text.Trim();
+        if (!Path.IsPathFullyQualified(folder) || !Directory.Exists(folder))
+        {
+            folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Downloads", AppInfo.Name);
+        }
+
+        AppSettings.Write(
+            ("DownloadFolder", folder),
+            ("DownloadMode", _radioMp3.Checked ? "MP3" : "Video"),
+            ("AudioQuality", _cmbAudioQuality.SelectedItem?.ToString() ?? "Best (VBR 0)"),
+            ("VideoQuality", _cmbVideoQuality.SelectedItem?.ToString() ?? "Best"));
     }
 
     private void ConfigureKeyboardNavigation()
@@ -2728,6 +2778,8 @@ internal sealed class MainForm : Form
             e.Cancel = true;
             return;
         }
+
+        SaveDownloadPreferences();
 
         _updateTimer.Stop();
         _updateTimer.Dispose();
