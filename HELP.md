@@ -54,12 +54,14 @@ Open **Queue → Open Queue** to see the current session queue. The queue window
 
 From the queue window you can:
 
+- retry a selected Failed or Stopped item with **Retry**; a new Pending item is added at the end using the original settings, while the original attempt stays in the history;
+- move a selected Pending item earlier or later using **Move up** or **Move down**;
 - remove a selected Pending item;
 - clear Completed, Failed and Stopped items;
 - choose **Pause Queue** to let the current download finish but prevent the next Pending item from starting;
 - choose **Resume Queue** to continue with the next Pending item.
 
-Pause Queue does not pause the download that is already running.
+Pause Queue does not pause the download that is already running. Retrying and reordering while paused do not resume the queue. The active download cannot be moved.
 
 The queue only exists for the current Media M8 session.
 

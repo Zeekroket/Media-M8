@@ -12,6 +12,9 @@ internal sealed class QueueWindow : Form
     private readonly Button _pauseResumeButton = new();
     private readonly Button _removePendingButton = new();
     private readonly Button _clearFinishedButton = new();
+    private readonly Button _retryButton = new();
+    private readonly Button _moveUpButton = new();
+    private readonly Button _moveDownButton = new();
 
     public QueueWindow(
         DownloadQueueModel queue,
@@ -43,7 +46,7 @@ internal sealed class QueueWindow : Form
     private void BuildUi()
     {
         _items.Location = new Point(20, 20);
-        _items.Size = new Size(665, 285);
+        _items.Size = new Size(665, 243);
         _items.Anchor =
             AnchorStyles.Top |
             AnchorStyles.Bottom |
@@ -118,6 +121,50 @@ internal sealed class QueueWindow : Form
             _queue.ClearFinished();
         };
         Controls.Add(_clearFinishedButton);
+
+        _retryButton.Text = "Retry";
+        _retryButton.Location = new Point(20, 278);
+        _retryButton.Size = new Size(120, 32);
+        _retryButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _retryButton.Click += async (_, _) =>
+        {
+            if (GetSelectedQueueItem() is not { } selected ||
+                _queue.Retry(selected.Id) is not { } retried)
+            {
+                return;
+            }
+
+            foreach (ListViewItem row in _items.Items)
+            {
+                if (row.Tag is int id && id == retried.Id)
+                {
+                    row.Selected = true;
+                    row.Focused = true;
+                    row.EnsureVisible();
+                    break;
+                }
+            }
+
+            if (!_queue.IsPaused)
+            {
+                await _resumeQueueAsync();
+            }
+        };
+        Controls.Add(_retryButton);
+
+        _moveUpButton.Text = "Move up";
+        _moveUpButton.Location = new Point(150, 278);
+        _moveUpButton.Size = new Size(115, 32);
+        _moveUpButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _moveUpButton.Click += (_, _) => MoveSelectedPending(-1);
+        Controls.Add(_moveUpButton);
+
+        _moveDownButton.Text = "Move down";
+        _moveDownButton.Location = new Point(275, 278);
+        _moveDownButton.Size = new Size(105, 32);
+        _moveDownButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        _moveDownButton.Click += (_, _) => MoveSelectedPending(1);
+        Controls.Add(_moveDownButton);
 
         var closeButton = new Button
         {
@@ -219,9 +266,19 @@ internal sealed class QueueWindow : Form
             ? "Resume Queue"
             : "Pause Queue";
 
+        var selected = GetSelectedQueueItem();
+
         _removePendingButton.Enabled =
-            GetSelectedQueueItem()?.State ==
-            DownloadQueueState.Pending;
+            selected?.State == DownloadQueueState.Pending;
+
+        _retryButton.Enabled =
+            selected?.State is DownloadQueueState.Failed or DownloadQueueState.Stopped;
+
+        _moveUpButton.Enabled =
+            selected is not null && _queue.CanMovePending(selected.Id, -1);
+
+        _moveDownButton.Enabled =
+            selected is not null && _queue.CanMovePending(selected.Id, 1);
 
         _clearFinishedButton.Enabled =
             _queue.Items.Any(
@@ -229,6 +286,14 @@ internal sealed class QueueWindow : Form
                     item.State == DownloadQueueState.Completed ||
                     item.State == DownloadQueueState.Failed ||
                     item.State == DownloadQueueState.Stopped);
+    }
+
+    private void MoveSelectedPending(int direction)
+    {
+        if (GetSelectedQueueItem() is { } selected)
+        {
+            _queue.MovePending(selected.Id, direction);
+        }
     }
 
     private DownloadQueueItem? GetSelectedQueueItem()
