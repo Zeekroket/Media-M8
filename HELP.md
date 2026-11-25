@@ -4,7 +4,7 @@
 
 ## First-run setup
 
-The first time Media M8 needs to download something, it may ask to install a few supporting components.
+When you open Media M8 for the first time, it checks whether the supporting components are available. If any are missing, choose **Set up** to get Media M8 ready before pasting a link. Once setup is complete, the prompt will not appear again unless components are missing.
 
 You do not need to install or configure these yourself. Media M8 downloads the missing components from the project release sources it is configured to use and verifies the downloaded files with SHA-256 checksums before placing them in its local `tools` folder.
 
@@ -14,7 +14,7 @@ The components are:
 - **FFmpeg / ffprobe** — handles media conversion and inspection;
 - **Deno** — provides the JavaScript runtime used by supported extractors when needed.
 
-Choosing **Cancel** leaves the components uninstalled and Media M8 will not start the download.
+Choosing **Cancel** leaves the missing components uninstalled. You can complete setup later by clicking **DOWNLOAD** with a valid link. If setup fails, you can try again the same way.
 
 You can check or refresh these components later through **Tools → Check download tools** and **Tools → Update download tools**.
 
