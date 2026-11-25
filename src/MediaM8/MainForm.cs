@@ -96,7 +96,7 @@ internal sealed class MainForm : Form
     {
         BuildMainMenu();
 
-        Controls.Add(NewLabel("Media URL", 20, 44));
+        Controls.Add(NewLabel("Link to download", 20, 44));
 
         _txtUrl.Location = new Point(20, 67);
         _txtUrl.Size = new Size(720, 25);
@@ -134,7 +134,7 @@ internal sealed class MainForm : Form
         _radioMp3.Checked = true;
         groupType.Controls.Add(_radioMp3);
 
-        _radioVideo.Text = "Video (MKV)";
+        _radioVideo.Text = "Video";
         _radioVideo.Location = new Point(110, 30);
         _radioVideo.AutoSize = true;
         groupType.Controls.Add(_radioVideo);
@@ -150,7 +150,7 @@ internal sealed class MainForm : Form
         _cmbVideoQuality.Enabled = false;
         groupVideoQuality.Controls.Add(_cmbVideoQuality);
 
-        var groupAudioQuality = NewGroupBox("Audio quality (MP3)", 340, 174, 190, 75);
+        var groupAudioQuality = NewGroupBox("Audio quality", 340, 174, 190, 75);
         Controls.Add(groupAudioQuality);
 
         _cmbAudioQuality.Location = new Point(20, 29);
@@ -187,7 +187,7 @@ internal sealed class MainForm : Form
         _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
         Controls.Add(_chkPlaylist);
 
-        _chkArchive.Text = "Skip previously downloaded items (downloaded.txt)";
+        _chkArchive.Text = "Skip items I've downloaded before";
         _chkArchive.Location = new Point(200, 339);
         _chkArchive.AutoSize = true;
         _chkArchive.Checked = true;
@@ -1096,7 +1096,7 @@ internal sealed class MainForm : Form
         {
             MessageBox.Show(
                 this,
-                "Enter a media URL first.",
+                "Paste a link first.",
                 AppInfo.Name,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -1109,7 +1109,7 @@ internal sealed class MainForm : Form
         {
             MessageBox.Show(
                 this,
-                "Enter a valid HTTP or HTTPS URL.",
+                "That link doesn't look valid. Paste a web link and try again.",
                 AppInfo.Name,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
