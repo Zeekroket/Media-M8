@@ -193,14 +193,20 @@ internal sealed class MainForm : Form
         Controls.Add(groupType);
 
         _radioMp3.Text = "MP3";
-        _radioMp3.Location = new Point(20, 30);
-        _radioMp3.AutoSize = true;
+        _radioMp3.Location = new Point(15, 26);
+        _radioMp3.Size = new Size(85, 28);
+        _radioMp3.AutoSize = false;
+        _radioMp3.CheckAlign = ContentAlignment.MiddleLeft;
+        _radioMp3.TextAlign = ContentAlignment.MiddleLeft;
         _radioMp3.Checked = true;
         groupType.Controls.Add(_radioMp3);
 
         _radioVideo.Text = "Video";
-        _radioVideo.Location = new Point(110, 30);
-        _radioVideo.AutoSize = true;
+        _radioVideo.Location = new Point(105, 26);
+        _radioVideo.Size = new Size(85, 28);
+        _radioVideo.AutoSize = false;
+        _radioVideo.CheckAlign = ContentAlignment.MiddleLeft;
+        _radioVideo.TextAlign = ContentAlignment.MiddleLeft;
         groupType.Controls.Add(_radioVideo);
 
         var groupVideoQuality = NewGroupBox("Video quality", 550, 174, 190, 75);
@@ -479,6 +485,13 @@ internal sealed class MainForm : Form
             var firstExtra = extraWidth / 3;
             var secondExtra = extraWidth / 3;
             typeGroup.Width = P(300) + firstExtra;
+            // Keep the native radio glyph inside its paint bounds at high DPI.
+            _radioMp3.SetBounds(P(15), P(26), P(85), P(28));
+            _radioVideo.SetBounds(P(105), P(26), P(85), P(28));
+            _radioMp3.Padding = new Padding(P(5), 0, P(3), 0);
+            _radioVideo.Padding = new Padding(P(5), 0, P(3), 0);
+            _radioMp3.Invalidate();
+            _radioVideo.Invalidate();
             audioGroup.Left = P(340) + firstExtra + scroll.X;
             audioGroup.Width = P(190) + secondExtra;
             videoGroup.Left = P(550) + firstExtra + secondExtra + scroll.X;
