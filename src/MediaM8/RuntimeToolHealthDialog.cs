@@ -98,9 +98,9 @@ internal static class RuntimeToolHealthDialog
 
             if (showDetails)
             {
-                dialog.ClientSize = new Size(560, 390);
-                detailsButton.Location = new Point(345, 340);
-                closeButton.Location = new Point(460, 340);
+                dialog.ClientSize = new Size(560, 420);
+                detailsButton.Location = new Point(345, 370);
+                closeButton.Location = new Point(460, 370);
             }
             else
             {
