@@ -20,9 +20,11 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        using var logger = new SessionLogger(AppContext.BaseDirectory);
+        using var logger = new SessionLogger(AppPaths.LogsDirectory);
         logger.Write($"Media M8 {AppInfo.Version} session started.");
-        logger.Write($"Application path: {AppContext.BaseDirectory}");
+        logger.Write($"Application path: {AppPaths.ApplicationDirectory}");
+        logger.Write($"Data path: {AppPaths.DataDirectory}");
+        logger.Write($"Mode: {(AppPaths.IsPortable ? "Portable" : "Installed")}");
 
         Application.ThreadException += (_, args) =>
         {
