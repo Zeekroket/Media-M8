@@ -6,7 +6,7 @@
 
 When you open Media M8 for the first time, it checks whether the supporting components are available. If any are missing, choose **Set up** to get Media M8 ready before pasting a link. Once setup is complete, the prompt will not appear again unless components are missing.
 
-You do not need to install or configure these yourself. Media M8 downloads the missing components from the project release sources it is configured to use and verifies the downloaded files with SHA-256 checksums before placing them in its local `tools` folder.
+You do not need to install or configure these yourself. Media M8 downloads the missing components from the project release sources it is configured to use and verifies the downloaded files with SHA-256 checksums before placing them in its `tools` folder (see Application data below).
 
 The components are:
 
@@ -17,6 +17,16 @@ The components are:
 Choosing **Cancel** leaves the missing components uninstalled. You can complete setup later by clicking **DOWNLOAD** with a valid link. If setup fails, you can try again the same way.
 
 You can check or refresh these components later through **Tools → Check download tools** and **Tools → Update download tools**.
+
+## Application data
+
+The portable ZIP includes a file named `portable.flag`. Keep that file next to `MediaM8.exe`. Tools, logs and appearance settings are stored in the portable folder.
+
+Without the marker, Media M8 uses installed mode and stores tools, logs and settings under `%LOCALAPPDATA%\Media M8`. The download destination remains whatever you choose in **Save to**.
+
+When upgrading an older portable copy in place, keep its existing tools and logs and add an empty `portable.flag` beside the executable before starting the new version. Alternatively, extract the new portable ZIP over the existing copy, keeping your data. Older versions stored appearance settings under `%LOCALAPPDATA%\Media M8\settings.json`. To retain that appearance in a portable copy, copy that file next to the executable if there is no local settings file yet. Installed mode keeps using the existing per-user settings.
+
+Existing data is not automatically moved or deleted.
 
 ## Quick start
 
