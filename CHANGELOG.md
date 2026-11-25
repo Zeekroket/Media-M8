@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Remember download folder, MP3/Video selection and quality preferences across sessions using the existing settings file; retain safe playlist defaults.
+
 - System-DPI-aware layouts, Windows text-size support, improved tab order and keyboard focus in the queue.
 
 - Guided application updates with mode-specific verified packages, explicit confirmation, and portable executable replacement without replacing local data.
