@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Show a clear completed download or queue result and offer Open folder for the last completed download.
+
 ### Fixed
 
 - Prevent the expanded download-tool details area from overlapping its buttons.
