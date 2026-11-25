@@ -142,7 +142,7 @@ Choosing a preset only updates the existing download type and quality controls. 
 
 **Help**
 - **Media M8 Help** — opens this page.
-- **Check for Updates** — checks GitHub Releases for a newer stable version. Media M8 also checks quietly shortly after startup and every six hours while it is open. If a newer stable release is available, **Update available** appears in the menu bar; click it for release information. Media M8 never installs an update automatically.
+- **Check for Updates** — checks GitHub Releases for a newer stable version. Media M8 checks quietly shortly after startup if no successful check has been recorded in the past seven days. The last successful check and its result are remembered separately for installed and portable copies, including across restarts. Manual checks remain available at any time. If a newer stable release is available, **Update available** appears in the menu bar; click it for release information. Media M8 never installs an update automatically.
 - **About Media M8** — shows version and project information.
 
 ## Project
