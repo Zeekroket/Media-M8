@@ -14,6 +14,13 @@ Media M8 is under active development and should be considered pre-1.0 software.
 
 Published builds and release notes are available on the [Releases](https://github.com/Zeekroket/Media-M8/releases) page.
 
+## Choose your distribution
+
+Each release includes two Windows x64 packages:
+
+- `MediaM8-<version>-win-x64-setup.exe`: Windows installer, Start menu shortcut and uninstall support.
+- `MediaM8-<version>-win-x64-portable.zip`: extract and run without installing. Keep the portable marker beside the executable.
+
 ## Features
 
 Media M8 currently includes:
@@ -92,11 +99,14 @@ To build and sign with the configured development code-signing certificate:
 .\scripts\build.ps1 -Sign
 ```
 
-To create the versioned win-x64 release ZIP after building:
+To package both release assets after building, install [Inno Setup](https://jrsoftware.org/isdl.php) 6.3 or newer (the build helper automatically locates Inno Setup 6, or accepts an explicit `-CompilerPath` to ISCC.exe).
 
 ```powershell
-.\scripts\package.ps1 -Version 0.1.0
+.\scripts\build.ps1 -Sign
+.\scripts\package-release.ps1 -Version 0.1.0 -Sign
 ```
+
+For an unsigned local test, omit `-Sign`. To create just the portable ZIP, run `.\scripts\package.ps1 -Version 0.1.0`. The release process must include both the installer and the portable ZIP.
 
 The PowerShell scripts under `scripts/` are developer build helpers only; PowerShell is not part of the Media M8 application runtime.
 

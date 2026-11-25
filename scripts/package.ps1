@@ -7,8 +7,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $distDir = Join-Path $repoRoot 'dist'
 $executable = Join-Path $distDir 'MediaM8.exe'
-$packageRoot = Join-Path $distDir "MediaM8-$Version-win-x64"
-$zipPath = Join-Path $distDir "MediaM8-$Version-win-x64.zip"
+$packageRoot = Join-Path $distDir "MediaM8-$Version-win-x64-portable"
+$zipPath = Join-Path $distDir "MediaM8-$Version-win-x64-portable.zip"
 
 if (-not (Test-Path -LiteralPath $executable)) {
     throw 'dist\MediaM8.exe is missing. Build Media M8 first.'

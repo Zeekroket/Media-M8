@@ -2,6 +2,12 @@
 
 **Media M8** *(pronounced “Media Mate”)* is a simple Windows app for downloading media from supported websites.
 
+## Install or run portable
+
+Choose the Setup EXE for a normal Windows installation with a Start menu shortcut. Windows may ask for administrator permission to install the application. You can uninstall Media M8 from Windows Settings → Apps. Your downloaded media and per-user application data are left in place.
+
+Choose the Portable ZIP if you prefer not to install anything. Extract it to a writable folder and open MediaM8.exe. Keep portable.flag beside the executable. To remove a portable copy, close Media M8 and remove that copy's folder when you no longer need its contents.
+
 ## First-run setup
 
 When you open Media M8 for the first time, it checks whether the supporting components are available. If any are missing, choose **Set up** to get Media M8 ready before pasting a link. Once setup is complete, the prompt will not appear again unless components are missing.
