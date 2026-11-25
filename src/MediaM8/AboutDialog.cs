@@ -180,6 +180,7 @@ internal static class AboutDialog
 
         ThemeManager.Apply(dialog);
 
+        WindowLayout.Prepare(dialog);
         dialog.ShowDialog(owner);
 
         logo.Image = null;

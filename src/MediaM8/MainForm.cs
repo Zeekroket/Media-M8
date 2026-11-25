@@ -86,6 +86,8 @@ internal sealed class MainForm : Form
     private bool _setupInProgress;
     private bool _applicationUpdateInProgress;
     private bool _detailsVisible;
+    private bool _mainLayoutReady;
+    private FormWindowState _lastNonMinimizedState = FormWindowState.Normal;
     private string? _completedFolder;
 
     public MainForm(SessionLogger logger)
@@ -95,8 +97,7 @@ internal sealed class MainForm : Form
         Text = $"{AppInfo.Name} {AppInfo.Version}";
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.None;
-        Size = new Size(780, 560);
-        MinimumSize = new Size(780, 560);
+        ClientSize = new Size(760, 535);
         Font = new Font("Segoe UI", 9f);
 
         try
@@ -113,6 +114,15 @@ internal sealed class MainForm : Form
         }
 
         BuildUi();
+        ConfigureKeyboardNavigation();
+        WindowLayout.Prepare(this, minimumClientSize: true);
+        Load += (_, _) =>
+        {
+            _mainLayoutReady = true;
+            _lastNonMinimizedState = WindowState;
+            LayoutMainWindow();
+        };
+        Resize += (_, _) => MainWindowResized();
         _downloadQueue.Changed += DownloadQueue_Changed;
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         ApplyCurrentTheme();
@@ -312,6 +322,36 @@ internal sealed class MainForm : Form
         Controls.Add(_status);
     }
 
+    private void ConfigureKeyboardNavigation()
+    {
+        _txtUrl.AccessibleName = "Link to download";
+        _txtFolder.AccessibleName = "Save to";
+        _cmbAudioQuality.AccessibleName = "Audio quality";
+        _cmbVideoQuality.AccessibleName = "Video quality";
+        _txtLog.AccessibleName = "Technical download log";
+        _progressBar.AccessibleName = "Download progress";
+        _status.AccessibleName = "Download status";
+        _previewGroup.TabStop = false;
+        _txtUrl.TabIndex = 0;
+        _btnPaste.TabIndex = 1;
+        _radioMp3.Parent!.TabIndex = 2;
+        _radioMp3.TabIndex = 0;
+        _radioVideo.TabIndex = 1;
+        _cmbAudioQuality.Parent!.TabIndex = 3;
+        _cmbVideoQuality.Parent!.TabIndex = 4;
+        _txtFolder.TabIndex = 5;
+        _btnBrowse.TabIndex = 6;
+        _chkPlaylist.TabIndex = 7;
+        _chkArchive.TabIndex = 8;
+        _chkOpenFolder.TabIndex = 9;
+        _btnDownload.TabIndex = 10;
+        _btnStop.TabIndex = 11;
+        _btnDetails.TabIndex = 12;
+        _btnOpenCompletedFolder.TabIndex = 13;
+        _txtLog.TabIndex = 14;
+        Shown += (_, _) => _txtUrl.Focus();
+    }
+
     private void ToggleDetails()
     {
         _detailsVisible = !_detailsVisible;
@@ -320,19 +360,104 @@ internal sealed class MainForm : Form
             ? "Hide details"
             : "Details";
 
-        _progressBar.Location = new Point(
-            20,
-            _detailsVisible ? 631 : 472);
-        _status.Location = new Point(
-            20,
-            _detailsVisible ? 655 : 496);
+        AutoScrollPosition = new Point(0, 0);
+        if (WindowState == FormWindowState.Normal)
+        {
+            RestoreCompactWindow();
+        }
+        LayoutMainWindow();
+    }
 
-        var targetHeight = _detailsVisible
-            ? 714
-            : 560;
+    private void RestoreCompactWindow()
+    {
+        var targetHeight = _detailsVisible ? 694 : 535;
+        WindowLayout.SetClientSize(this, 760, targetHeight, minimumClientSize: true);
+    }
 
-        MinimumSize = new Size(780, targetHeight);
-        Height = targetHeight;
+    private void MainWindowResized()
+    {
+        if (!_mainLayoutReady || WindowState == FormWindowState.Minimized)
+        {
+            return;
+        }
+
+        var restored = _lastNonMinimizedState == FormWindowState.Maximized &&
+            WindowState == FormWindowState.Normal;
+        _lastNonMinimizedState = WindowState;
+
+        if (restored)
+        {
+            // Windows may restore old bounds after the display scale changes.
+            // Reapply the normal client size after the native restore completes.
+            BeginInvoke(new Action(() =>
+            {
+                if (!IsDisposed && WindowState == FormWindowState.Normal)
+                {
+                    RestoreCompactWindow();
+                    LayoutMainWindow();
+                }
+            }));
+        }
+
+        LayoutMainWindow();
+    }
+
+    private void LayoutMainWindow()
+    {
+        if (!_mainLayoutReady || WindowState == FormWindowState.Minimized)
+        {
+            return;
+        }
+
+        int P(int value) => WindowLayout.Pixels(this, value);
+        var extraWidth = Math.Max(0, ClientSize.Width - P(760));
+        var baseHeight = _detailsVisible ? 694 : 535;
+        var extraHeight = Math.Max(0, ClientSize.Height - P(baseHeight));
+        var scroll = AutoScrollPosition;
+        var left = P(20) + scroll.X;
+
+        SuspendLayout();
+        try
+        {
+            _txtUrl.Width = P(625) + extraWidth;
+            _btnPaste.Left = P(655) + extraWidth + scroll.X;
+            _previewGroup.Width = P(720) + extraWidth;
+
+            var typeGroup = _radioMp3.Parent!;
+            var audioGroup = _cmbAudioQuality.Parent!;
+            var videoGroup = _cmbVideoQuality.Parent!;
+            var firstExtra = extraWidth / 3;
+            var secondExtra = extraWidth / 3;
+            typeGroup.Width = P(300) + firstExtra;
+            audioGroup.Left = P(340) + firstExtra + scroll.X;
+            audioGroup.Width = P(190) + secondExtra;
+            videoGroup.Left = P(550) + firstExtra + secondExtra + scroll.X;
+            videoGroup.Width = P(190) + extraWidth - firstExtra - secondExtra;
+            _cmbAudioQuality.Width = audioGroup.Width - P(45);
+            _cmbVideoQuality.Width = videoGroup.Width - P(45);
+
+            _txtFolder.Width = P(625) + extraWidth;
+            _btnBrowse.Left = P(655) + extraWidth + scroll.X;
+            _chkArchive.Left = P(200) + extraWidth / 3 + scroll.X;
+            _chkOpenFolder.Left = P(560) + extraWidth + scroll.X;
+            _btnDownload.Width = P(580) + extraWidth;
+            _btnStop.Left = P(610) + extraWidth + scroll.X;
+            _txtLog.Width = P(720) + extraWidth;
+            _txtLog.Height = P(150) + (_detailsVisible ? extraHeight : 0);
+
+            _progressBar.SetBounds(left,
+                P(_detailsVisible ? 631 : 472) + extraHeight + scroll.Y,
+                P(720) + extraWidth, P(18));
+            _status.SetBounds(left,
+                P(_detailsVisible ? 655 : 496) + extraHeight + scroll.Y,
+                P(720) + extraWidth, P(20));
+
+            SetPreviewTextLayout(_previewThumbnail.Visible);
+        }
+        finally
+        {
+            ResumeLayout(false);
+        }
     }
 
     private void BuildMainMenu()
@@ -1374,17 +1499,23 @@ internal sealed class MainForm : Form
     {
         if (thumbnailVisible)
         {
-            _previewTitle.Location = new Point(100, 18);
-            _previewTitle.Size = new Size(605, 20);
-            _previewInfo.Location = new Point(100, 38);
-            _previewInfo.Size = new Size(605, 18);
+            _previewTitle.Location = WindowLayout.Point(_previewGroup, 100, 18);
+            _previewTitle.Size = new Size(
+                Math.Max(1, _previewGroup.ClientSize.Width - WindowLayout.Pixels(_previewGroup, 115)),
+                WindowLayout.Pixels(_previewGroup, 20));
+            _previewInfo.Location = WindowLayout.Point(_previewGroup, 100, 38);
+            _previewInfo.Size = new Size(
+                _previewTitle.Width, WindowLayout.Pixels(_previewGroup, 18));
         }
         else
         {
-            _previewTitle.Location = new Point(15, 18);
-            _previewTitle.Size = new Size(690, 20);
-            _previewInfo.Location = new Point(15, 38);
-            _previewInfo.Size = new Size(690, 18);
+            _previewTitle.Location = WindowLayout.Point(_previewGroup, 15, 18);
+            _previewTitle.Size = new Size(
+                Math.Max(1, _previewGroup.ClientSize.Width - WindowLayout.Pixels(_previewGroup, 30)),
+                WindowLayout.Pixels(_previewGroup, 20));
+            _previewInfo.Location = WindowLayout.Point(_previewGroup, 15, 38);
+            _previewInfo.Size = new Size(
+                _previewTitle.Width, WindowLayout.Pixels(_previewGroup, 18));
         }
     }
 
@@ -2523,6 +2654,7 @@ internal sealed class MainForm : Form
 
         ThemeManager.Apply(dialog);
 
+        WindowLayout.Prepare(dialog);
         return dialog.ShowDialog(this) == DialogResult.OK;
     }
 

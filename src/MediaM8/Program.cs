@@ -9,20 +9,18 @@ internal static class Program
     private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     [STAThread]
-    private static void Main(string[] args)
+    private static void Main(string[] commandLineArgs)
     {
         _ = SetCurrentProcessExplicitAppUserModelID("Zeekroket.MediaM8");
 
-        // Keep the original PowerShell POC layout dimensions consistent on
-        // displays using Windows scaling. The POC was DPI-virtualized by its
-        // host process, so Windows scaled the complete UI as one unit.
-        Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
+        // Render native controls at the system DPI instead of bitmap scaling.
+        Application.SetHighDpiMode(HighDpiMode.SystemAware);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        if (args.Length > 0 && args[0] == "--apply-portable-update")
+        if (commandLineArgs.Length > 0 && commandLineArgs[0] == "--apply-portable-update")
         {
-            ApplicationUpdater.ApplyPortableUpdate(args);
+            ApplicationUpdater.ApplyPortableUpdate(commandLineArgs);
             return;
         }
 

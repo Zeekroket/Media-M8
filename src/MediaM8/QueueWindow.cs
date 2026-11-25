@@ -25,11 +25,17 @@ internal sealed class QueueWindow : Form
 
         Text = "Media M8 Queue";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(720, 420);
+        ClientSize = new Size(705, 381);
         MinimumSize = new Size(620, 340);
         Font = new Font("Segoe UI", 9f);
 
         BuildUi();
+        WindowLayout.Prepare(this);
+        Load += (_, _) =>
+        {
+            _items.Columns[0].Width = WindowLayout.Pixels(this, 115);
+            _items.Columns[1].Width = WindowLayout.Pixels(this, 525);
+        };
 
         _queue.Changed += Queue_Changed;
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
@@ -177,6 +183,16 @@ internal sealed class QueueWindow : Form
         };
         closeButton.Click += (_, _) => Close();
         Controls.Add(closeButton);
+
+        _items.AccessibleName = "Download queue";
+        _items.TabIndex = 0;
+        _retryButton.TabIndex = 1;
+        _moveUpButton.TabIndex = 2;
+        _moveDownButton.TabIndex = 3;
+        _pauseResumeButton.TabIndex = 4;
+        _removePendingButton.TabIndex = 5;
+        _clearFinishedButton.TabIndex = 6;
+        closeButton.TabIndex = 7;
 
         AcceptButton = closeButton;
         CancelButton = closeButton;
@@ -349,6 +365,14 @@ internal sealed class QueueWindow : Form
         e.Graphics.FillRectangle(
             background,
             e.Bounds);
+
+        if (e.Item.Focused && _items.Focused)
+        {
+            ControlPaint.DrawFocusRectangle(
+                e.Graphics, e.Bounds,
+                ThemeManager.SelectionTextColor,
+                ThemeManager.SelectionBackColor);
+        }
 
         TextRenderer.DrawText(
             e.Graphics,

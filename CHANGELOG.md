@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- System-DPI-aware layouts, Windows text-size support, improved tab order and keyboard focus in the queue.
+
 - Guided application updates with mode-specific verified packages, explicit confirmation, and portable executable replacement without replacing local data.
 
 - Quiet automatic checks for stable application updates, with a menu-bar notification when a newer version is available.
