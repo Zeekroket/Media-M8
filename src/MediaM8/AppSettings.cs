@@ -5,9 +5,24 @@ namespace MediaM8;
 
 internal static class AppSettings
 {
-    private static readonly object Sync = new();
+    private static readonly SettingsStore Store = new(AppPaths.SettingsPath);
 
-    public static string? Read(string key)
+    public static string? Read(string key) => Store.Read(key);
+
+    public static void Write(params (string Key, string Value)[] values) => Store.Write(values);
+}
+
+internal sealed class SettingsStore
+{
+    private readonly object Sync = new();
+    private readonly string _settingsPath;
+
+    public SettingsStore(string settingsPath)
+    {
+        _settingsPath = Path.GetFullPath(settingsPath);
+    }
+
+    public string? Read(string key)
     {
         lock (Sync)
         {
@@ -26,7 +41,7 @@ internal static class AppSettings
         }
     }
 
-    public static void Write(params (string Key, string Value)[] values)
+    public void Write(params (string Key, string Value)[] values)
     {
         lock (Sync)
         {
@@ -48,12 +63,13 @@ internal static class AppSettings
                     settings[key] = value;
                 }
 
-                Directory.CreateDirectory(AppPaths.DataDirectory);
-                tempPath = Path.Combine(AppPaths.DataDirectory,
+                var directory = Path.GetDirectoryName(_settingsPath)!;
+                Directory.CreateDirectory(directory);
+                tempPath = Path.Combine(directory,
                     "settings-" + Guid.NewGuid().ToString("N") + ".tmp");
                 File.WriteAllText(tempPath, settings.ToJsonString(
                     new JsonSerializerOptions { WriteIndented = true }));
-                File.Move(tempPath, AppPaths.SettingsPath, overwrite: true);
+                File.Move(tempPath, _settingsPath, overwrite: true);
             }
             catch
             {
@@ -69,9 +85,9 @@ internal static class AppSettings
         }
     }
 
-    private static JsonObject Load() =>
-        File.Exists(AppPaths.SettingsPath)
-            ? JsonNode.Parse(File.ReadAllText(AppPaths.SettingsPath)) as JsonObject
+    private JsonObject Load() =>
+        File.Exists(_settingsPath)
+            ? JsonNode.Parse(File.ReadAllText(_settingsPath)) as JsonObject
                 ?? new JsonObject()
             : new JsonObject();
 }
