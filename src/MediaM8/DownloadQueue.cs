@@ -98,6 +98,63 @@ internal sealed class DownloadQueueModel
         return true;
     }
 
+    public DownloadQueueItem? Retry(int id)
+    {
+        var item = _items.FirstOrDefault(
+            candidate => candidate.Id == id &&
+                (candidate.State == DownloadQueueState.Failed ||
+                 candidate.State == DownloadQueueState.Stopped));
+
+        return item is null ? null : Enqueue(item.Request);
+    }
+
+    public bool CanMovePending(int id, int direction)
+    {
+        return FindPendingMove(id, direction) is not null;
+    }
+
+    public bool MovePending(int id, int direction)
+    {
+        if (FindPendingMove(id, direction) is not { } move)
+        {
+            return false;
+        }
+
+        (_items[move.From], _items[move.To]) =
+            (_items[move.To], _items[move.From]);
+        NotifyChanged();
+        return true;
+    }
+
+    private (int From, int To)? FindPendingMove(int id, int direction)
+    {
+        if (direction != -1 && direction != 1)
+        {
+            return null;
+        }
+
+        var from = _items.FindIndex(
+            item => item.Id == id &&
+                item.State == DownloadQueueState.Pending);
+
+        if (from < 0)
+        {
+            return null;
+        }
+
+        for (var to = from + direction;
+             to >= 0 && to < _items.Count;
+             to += direction)
+        {
+            if (_items[to].State == DownloadQueueState.Pending)
+            {
+                return (from, to);
+            }
+        }
+
+        return null;
+    }
+
     public int ClearFinished()
     {
         var removed = _items.RemoveAll(
