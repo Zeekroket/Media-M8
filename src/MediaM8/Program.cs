@@ -54,5 +54,5 @@ internal static class Program
 internal static class AppInfo
 {
     public const string Name = "Media M8";
-    public const string Version = "0.1.0";
+    public const string Version = "0.2.0";
 }
