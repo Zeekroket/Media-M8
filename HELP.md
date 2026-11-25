@@ -48,6 +48,12 @@ Media M8 shows progress at the bottom of the window. After a successful download
 
 When several downloads run in the queue, the final status shows the results. **Open folder** opens the folder of the last completed download. **Open folder when finished** still opens the folder automatically if selected.
 
+## Display and keyboard
+
+Media M8 uses the Windows system DPI and text-size setting at launch. Restart Media M8 after changing display scaling or accessibility text size. If a window is larger than the available screen, scroll to reach its controls.
+
+Use Tab and Shift+Tab to move between controls, arrow keys to choose the download type or quality, Space to toggle checkboxes or activate a focused button, and Alt to access the menus.
+
 ## Playlists
 
 **Download playlist** is off by default.
