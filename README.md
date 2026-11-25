@@ -35,7 +35,7 @@ Media M8 currently includes:
 - Live download progress, speed and estimated time remaining
 - STOP button for the active download
 - Friendly user-facing error messages with optional technical details
-- Automatic setup of required portable runtime tools
+- Automatic setup of required runtime tools
 - Download-tool health check and manual verified tool refresh
 - Manual Media M8 update check through GitHub Releases
 - Match System, Light and Dark appearance modes
@@ -60,9 +60,15 @@ Media M8 uses separate third-party tools for download and media processing:
 - [FFmpeg](https://ffmpeg.org/) and ffprobe
 - [Deno](https://deno.com/)
 
-Media M8 keeps these tools in its local `tools/` directory. If they are missing, the application can download them from the configured official project release sources and verify their SHA-256 checksums before using them.
+Media M8 keeps these tools in the `tools/` directory of the active application data location. If they are missing, the application can download them from the configured official project release sources and verify their SHA-256 checksums before using them.
 
 These projects are not part of Media M8 and remain subject to their own licenses and distribution terms.
+
+## Application data
+
+The portable ZIP and development builds include `portable.flag`. With this marker beside the executable, Media M8 keeps tools, logs and settings in the same folder. Without the marker, it stores mutable application data under `%LOCALAPPDATA%\Media M8`, independently of the executable location.
+
+See [Application data in Help](HELP.md#application-data) for upgrading existing portable copies safely.
 
 ## Application runtime
 

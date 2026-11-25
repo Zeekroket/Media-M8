@@ -565,9 +565,7 @@ internal sealed class MainForm : Form
 
         try
         {
-            var toolsDirectory = Path.Combine(
-                AppContext.BaseDirectory,
-                "tools");
+            var toolsDirectory = AppPaths.ToolsDirectory;
 
             var report = await RuntimeToolHealthChecker.CheckAsync(
                 toolsDirectory,
@@ -635,9 +633,7 @@ internal sealed class MainForm : Form
 
         try
         {
-            var toolsDirectory = Path.Combine(
-                AppContext.BaseDirectory,
-                "tools");
+            var toolsDirectory = AppPaths.ToolsDirectory;
             var progress = new Progress<string>(AddUiLog);
 
             await RuntimeToolManager.RefreshAllToolsAsync(
@@ -826,7 +822,7 @@ internal sealed class MainForm : Form
 
     private void OpenLogsFolder()
     {
-        var logsFolder = Path.Combine(AppContext.BaseDirectory, "logs");
+        var logsFolder = AppPaths.LogsDirectory;
 
         try
         {
@@ -946,7 +942,7 @@ internal sealed class MainForm : Form
         {
             await Task.Delay(500, cancellation.Token);
 
-            var toolsDirectory = Path.Combine(AppContext.BaseDirectory, "tools");
+            var toolsDirectory = AppPaths.ToolsDirectory;
             var runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
 
             if (runtimeTools.YtDlp is null || runtimeTools.Deno is null)
@@ -1409,9 +1405,7 @@ internal sealed class MainForm : Form
     private async Task<DownloadQueueState> ProcessQueueItemAsync(
         DownloadRequest request)
     {
-        var toolsDirectory = Path.Combine(
-            AppContext.BaseDirectory,
-            "tools");
+        var toolsDirectory = AppPaths.ToolsDirectory;
         var runtimeTools = RuntimeToolManager.GetToolPaths(
             toolsDirectory);
         var missingTools = RuntimeToolManager.GetMissingTools(
@@ -2049,7 +2043,7 @@ internal sealed class MainForm : Form
 
     private async Task<bool> EnsureFirstRunSetupAsync()
     {
-        var toolsDirectory = Path.Combine(AppContext.BaseDirectory, "tools");
+        var toolsDirectory = AppPaths.ToolsDirectory;
         var missingTools = RuntimeToolManager.GetMissingTools(
             RuntimeToolManager.GetToolPaths(toolsDirectory));
 

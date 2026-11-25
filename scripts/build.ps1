@@ -58,6 +58,11 @@ if (-not (Test-Path -LiteralPath $output)) {
     throw "Build succeeded but $output was not created."
 }
 
+# Development builds remain portable and keep existing dist data.
+if (-not (Test-Path -LiteralPath (Join-Path $distDir 'portable.flag'))) {
+    New-Item -ItemType File -Path (Join-Path $distDir 'portable.flag') | Out-Null
+}
+
 Write-Host "Built $output"
 Write-Host 'Runtime: self-contained .NET 10; PowerShell is not required to run Media M8.'
 

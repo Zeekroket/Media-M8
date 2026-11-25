@@ -21,6 +21,7 @@ New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $packageRoot 'tools') -Force | Out-Null
 
 Copy-Item -LiteralPath $executable -Destination $packageRoot
+New-Item -ItemType File -Path (Join-Path $packageRoot 'portable.flag') | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') -Destination $packageRoot
 
 $toolsReadme = @(
