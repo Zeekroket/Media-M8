@@ -78,21 +78,22 @@ internal static class FriendlyErrorDialog
 
         detailsButton.Click += (_, _) =>
         {
+            dialog.AutoScrollPosition = new Point(0, 0);
             var showDetails = !detailsBox.Visible;
             detailsBox.Visible = showDetails;
             detailsButton.Text = showDetails ? "Hide details" : "Details...";
 
             if (showDetails)
             {
-                WindowLayout.SetClientSize(dialog, 520, 420);
                 detailsButton.Location = WindowLayout.Point(dialog, 305, 370);
                 closeButton.Location = WindowLayout.Point(dialog, 415, 370);
+                WindowLayout.SetClientSize(dialog, 520, 420);
             }
             else
             {
-                WindowLayout.SetClientSize(dialog, 520, 220);
                 detailsButton.Location = WindowLayout.Point(dialog, 320, 170);
                 closeButton.Location = WindowLayout.Point(dialog, 415, 170);
+                WindowLayout.SetClientSize(dialog, 520, 220);
             }
         };
 
