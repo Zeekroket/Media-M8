@@ -6,7 +6,7 @@ namespace MediaM8;
 
 internal static class UpdateResultDialog
 {
-    public static void ShowNewVersion(
+    public static bool ShowNewVersion(
         IWin32Window owner,
         Version installedVersion,
         Version latestVersion,
@@ -20,7 +20,7 @@ internal static class UpdateResultDialog
             MaximizeBox = false,
             MinimizeBox = false,
             ShowInTaskbar = false,
-            ClientSize = new Size(470, 190),
+            ClientSize = new Size(490, 225),
             Font = new Font("Segoe UI", 9f)
         };
 
@@ -48,15 +48,17 @@ internal static class UpdateResultDialog
         {
             Location = new Point(20, 108),
             Size = new Size(430, 28),
-            Text = "Media M8 will not install anything automatically."
+            Text = AppPaths.IsPortable
+                ? "Your portable tools, logs and settings will be kept."
+                : "Your settings and downloaded media will be kept."
         };
         dialog.Controls.Add(note);
 
         var releaseButton = new Button
         {
             Text = "Open release page",
-            Location = new Point(270, 145),
-            Size = new Size(110, 30)
+            Location = new Point(20, 180),
+            Size = new Size(130, 30)
         };
         releaseButton.Click += (_, _) =>
         {
@@ -83,17 +85,26 @@ internal static class UpdateResultDialog
         var closeButton = new Button
         {
             Text = "Close",
-            Location = new Point(390, 145),
+            Location = new Point(410, 180),
             Size = new Size(60, 30),
             DialogResult = DialogResult.OK
         };
         dialog.Controls.Add(closeButton);
 
-        dialog.AcceptButton = releaseButton;
+        var downloadButton = new Button
+        {
+            Text = "Download update",
+            Location = new Point(260, 180),
+            Size = new Size(140, 30),
+            DialogResult = DialogResult.Yes
+        };
+        dialog.Controls.Add(downloadButton);
+
+        dialog.AcceptButton = downloadButton;
         dialog.CancelButton = closeButton;
 
         ThemeManager.Apply(dialog);
 
-        dialog.ShowDialog(owner);
+        return dialog.ShowDialog(owner) == DialogResult.Yes;
     }
 }
