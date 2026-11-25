@@ -95,8 +95,7 @@ internal sealed class MainForm : Form
         Text = $"{AppInfo.Name} {AppInfo.Version}";
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.None;
-        Size = new Size(780, 560);
-        MinimumSize = new Size(780, 560);
+        ClientSize = new Size(760, 535);
         Font = new Font("Segoe UI", 9f);
 
         try
@@ -114,7 +113,7 @@ internal sealed class MainForm : Form
 
         BuildUi();
         ConfigureKeyboardNavigation();
-        WindowLayout.Prepare(this);
+        WindowLayout.Prepare(this, minimumClientSize: true);
         _downloadQueue.Changed += DownloadQueue_Changed;
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         ApplyCurrentTheme();
@@ -358,13 +357,8 @@ internal sealed class MainForm : Form
         _status.Location = WindowLayout.Point(this,
             20, _detailsVisible ? 655 : 496);
 
-        var targetHeight = _detailsVisible
-            ? 714
-            : 560;
-
-        MinimumSize = WindowLayout.Size(this, 780, targetHeight);
-        Height = WindowLayout.Pixels(this, targetHeight);
-        WindowLayout.FitToScreen(this);
+        var targetHeight = _detailsVisible ? 694 : 535;
+        WindowLayout.SetClientSize(this, 760, targetHeight, minimumClientSize: true);
     }
 
     private void BuildMainMenu()
