@@ -39,6 +39,7 @@ internal sealed class MainForm : Form
     private readonly Button _btnDownload = new();
     private readonly Button _btnStop = new();
     private readonly Button _btnDetails = new();
+    private readonly Button _btnOpenCompletedFolder = new();
     private readonly TextBox _txtLog = new();
     private readonly ProgressBar _progressBar = new();
     private readonly Label _status = new();
@@ -61,6 +62,7 @@ internal sealed class MainForm : Form
         "preparing");
     private bool _isBusy;
     private bool _detailsVisible;
+    private string? _completedFolder;
 
     public MainForm(SessionLogger logger)
     {
@@ -227,6 +229,19 @@ internal sealed class MainForm : Form
         _btnDetails.Size = new Size(90, 29);
         _btnDetails.Click += (_, _) => ToggleDetails();
         Controls.Add(_btnDetails);
+
+        _btnOpenCompletedFolder.Text = "Open folder";
+        _btnOpenCompletedFolder.Location = new Point(120, 430);
+        _btnOpenCompletedFolder.Size = new Size(110, 29);
+        _btnOpenCompletedFolder.Visible = false;
+        _btnOpenCompletedFolder.Click += (_, _) =>
+        {
+            if (_completedFolder is { } folder)
+            {
+                OpenDownloadFolder(folder);
+            }
+        };
+        Controls.Add(_btnOpenCompletedFolder);
 
         _txtLog.Location = new Point(20, 467);
         _txtLog.Size = new Size(720, 150);
@@ -767,8 +782,11 @@ internal sealed class MainForm : Form
 
     private void OpenDownloadFolder()
     {
-        var folder = _txtFolder.Text.Trim();
+        OpenDownloadFolder(_txtFolder.Text.Trim());
+    }
 
+    private void OpenDownloadFolder(string folder)
+    {
         if (string.IsNullOrWhiteSpace(folder))
         {
             MessageBox.Show(
@@ -1278,7 +1296,13 @@ internal sealed class MainForm : Form
         }
 
         _queueWorkerRunning = true;
+        _completedFolder = null;
+        _btnOpenCompletedFolder.Visible = false;
         UpdateQueueButtonText();
+
+        var completed = 0;
+        var failed = 0;
+        var stopped = 0;
 
         try
         {
@@ -1311,6 +1335,20 @@ internal sealed class MainForm : Form
                     state,
                     statusDetail);
 
+                switch (state)
+                {
+                    case DownloadQueueState.Completed:
+                        completed++;
+                        _completedFolder = queueItem.Request.Folder;
+                        break;
+                    case DownloadQueueState.Failed:
+                        failed++;
+                        break;
+                    case DownloadQueueState.Stopped:
+                        stopped++;
+                        break;
+                }
+
                 AddUiLog(
                     $"Queue item #{queueItem.Id}: {state}.");
 
@@ -1327,12 +1365,7 @@ internal sealed class MainForm : Form
             _queueWorkerRunning = false;
             UpdateQueueButtonText();
 
-            var completed = _downloadQueue.Items.Count(
-                item => item.State == DownloadQueueState.Completed);
-            var failed = _downloadQueue.Items.Count(
-                item => item.State == DownloadQueueState.Failed);
-            var stopped = _downloadQueue.Items.Count(
-                item => item.State == DownloadQueueState.Stopped);
+            _btnOpenCompletedFolder.Visible = _completedFolder is not null;
 
             AddUiLog(string.Empty);
 
@@ -1349,7 +1382,19 @@ internal sealed class MainForm : Form
                 AddUiLog(
                     $"Queue finished: {completed} completed, " +
                     $"{failed} failed, {stopped} stopped.");
-                _status.Text = "Queue finished.";
+                if (completed == 1 && failed == 0 && stopped == 0)
+                {
+                    _status.Text = "Download completed.";
+                }
+                else if (completed + failed + stopped > 1)
+                {
+                    var results = new List<string>();
+                    if (completed > 0) results.Add($"{completed} completed");
+                    if (failed > 0) results.Add($"{failed} failed");
+                    if (stopped > 0) results.Add($"{stopped} stopped");
+
+                    _status.Text = $"Queue finished · {string.Join(", ", results)}.";
+                }
             }
         }
     }
