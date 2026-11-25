@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop and reset the progress indicator when a download fails.
+
 ### Changed
 
 - Simplified technical wording in the main window so normal downloads no longer expose MKV, MP3-format labels, URL terminology or the downloaded.txt filename.
