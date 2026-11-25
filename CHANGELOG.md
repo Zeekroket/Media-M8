@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Quiet automatic checks for stable application updates, with a menu-bar notification when a newer version is available.
+
 - Windows installer with Start menu integration and uninstall support, alongside the separately named portable ZIP.
 
 - Retry failed or stopped queue items with their original settings and reorder pending downloads using Move up and Move down.

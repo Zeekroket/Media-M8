@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace MediaM8;
@@ -17,6 +18,27 @@ internal sealed class MainForm : Form
     private readonly DownloadQueueModel _downloadQueue = new();
 
     private readonly MenuStrip _mainMenu = new();
+    private readonly ToolStripMenuItem _checkUpdatesItem =
+        new("Check for Updates");
+    private readonly ToolStripMenuItem _updateNoticeItem =
+        new("Update available")
+        {
+            Alignment = ToolStripItemAlignment.Right,
+            Available = false
+        };
+    private readonly System.Windows.Forms.Timer _updateTimer =
+        new() { Interval = 30_000 };
+    private readonly CancellationTokenSource _updateCancellation = new();
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromDays(7);
+    private static string UpdateCachePath =>
+        Path.Combine(AppPaths.DataDirectory, "update-check.json");
+    private DateTimeOffset? _lastSuccessfulUpdateCheckUtc;
+    private sealed record UpdateCheckCache(
+        DateTimeOffset CheckedAtUtc,
+        UpdateCheckResult Result);
+
+    private bool _updateCheckInProgress;
+    private UpdateCheckResult? _availableUpdate;
     private readonly ToolStripMenuItem _matchSystemThemeItem =
         new("Match System");
     private readonly ToolStripMenuItem _lightThemeItem = new("Light");
@@ -94,7 +116,26 @@ internal sealed class MainForm : Form
         ThemeManager.ThemeChanged += ThemeManager_ThemeChanged;
         ApplyCurrentTheme();
         FormClosing += MainForm_FormClosing;
-        Shown += async (_, _) => await EnsureFirstRunSetupAsync();
+        _updateTimer.Tick += async (_, _) =>
+        {
+            _updateTimer.Stop();
+            await CheckForUpdatesInBackgroundAsync();
+
+            if (!IsDisposed && !Disposing && !_updateCancellation.IsCancellationRequested)
+            {
+                ScheduleNextUpdateCheck();
+                _updateTimer.Start();
+            }
+        };
+        Shown += async (_, _) =>
+        {
+            RestoreUpdateCheckCache();
+            await EnsureFirstRunSetupAsync();
+            if (!IsDisposed && !Disposing)
+            {
+                _updateTimer.Start();
+            }
+        };
     }
 
     private void BuildUi()
@@ -391,19 +432,15 @@ internal sealed class MainForm : Form
         {
             ShortcutKeyDisplayString = "F1"
         };
-        var checkUpdatesItem = new ToolStripMenuItem(
-            "Check for Updates");
-        checkUpdatesItem.Click += async (_, _) =>
+        _checkUpdatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
+        _updateNoticeItem.Click += (_, _) =>
         {
-            checkUpdatesItem.Enabled = false;
-
-            try
+            if (_availableUpdate is { } result &&
+                result.LatestVersion is { } version &&
+                !string.IsNullOrWhiteSpace(result.ReleaseUrl))
             {
-                await CheckForUpdatesAsync();
-            }
-            finally
-            {
-                checkUpdatesItem.Enabled = true;
+                UpdateResultDialog.ShowNewVersion(
+                    this, result.InstalledVersion, version, result.ReleaseUrl);
             }
         };
 
@@ -413,7 +450,7 @@ internal sealed class MainForm : Form
             (_, _) => AboutDialog.Show(this));
 
         helpMenu.DropDownItems.Add(helpItem);
-        helpMenu.DropDownItems.Add(checkUpdatesItem);
+        helpMenu.DropDownItems.Add(_checkUpdatesItem);
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add(aboutItem);
 
@@ -424,7 +461,8 @@ internal sealed class MainForm : Form
                 toolsMenu,
                 presetsMenu,
                 queueMenu,
-                helpMenu
+                helpMenu,
+                _updateNoticeItem
             });
 
         MainMenuStrip = _mainMenu;
@@ -679,15 +717,170 @@ internal sealed class MainForm : Form
         }
     }
 
+    private void UpdateAvailableNotice(UpdateCheckResult result)
+    {
+        _availableUpdate =
+            result.Availability == UpdateAvailability.NewVersionAvailable &&
+            result.LatestVersion is not null &&
+            !string.IsNullOrWhiteSpace(result.ReleaseUrl)
+                ? result
+                : null;
+
+        _updateNoticeItem.Text = _availableUpdate is { } update
+            ? $"Update available ({update.LatestVersion})"
+            : "Update available";
+        _updateNoticeItem.Available = _availableUpdate is not null;
+    }
+
+    private bool IsAutomaticUpdateCheckDue()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return _lastSuccessfulUpdateCheckUtc is not { } last ||
+               last > now ||
+               now - last >= UpdateCheckInterval;
+    }
+
+    private void ScheduleNextUpdateCheck()
+    {
+        var delay = UpdateCheckInterval;
+        if (!IsAutomaticUpdateCheckDue() &&
+            _lastSuccessfulUpdateCheckUtc is { } last)
+        {
+            delay = last + UpdateCheckInterval - DateTimeOffset.UtcNow;
+        }
+
+        _updateTimer.Interval = (int)Math.Clamp(
+            delay.TotalMilliseconds, 1d, UpdateCheckInterval.TotalMilliseconds);
+    }
+
+    private void RestoreUpdateCheckCache()
+    {
+        try
+        {
+            if (!File.Exists(UpdateCachePath))
+            {
+                return;
+            }
+
+            var cache = JsonSerializer.Deserialize<UpdateCheckCache>(
+                File.ReadAllText(UpdateCachePath));
+            if (cache is null || cache.Result is null ||
+                cache.CheckedAtUtc > DateTimeOffset.UtcNow)
+            {
+                return;
+            }
+
+            _lastSuccessfulUpdateCheckUtc = cache.CheckedAtUtc;
+
+            var installed = Version.Parse(AppInfo.Version);
+            var availability = cache.Result.LatestVersion is { } latest
+                ? latest > installed
+                    ? UpdateAvailability.NewVersionAvailable
+                    : UpdateAvailability.UpToDate
+                : UpdateAvailability.NoPublishedRelease;
+
+            UpdateAvailableNotice(cache.Result with
+            {
+                InstalledVersion = installed,
+                Availability = availability
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Write($"Could not read update check cache: {ex}", "UPDATE");
+        }
+    }
+
+    private void RememberSuccessfulUpdateCheck(UpdateCheckResult result)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _lastSuccessfulUpdateCheckUtc = now;
+
+        try
+        {
+            Directory.CreateDirectory(AppPaths.DataDirectory);
+            File.WriteAllText(
+                UpdateCachePath,
+                JsonSerializer.Serialize(new UpdateCheckCache(now, result)));
+        }
+        catch (Exception ex)
+        {
+            _logger.Write($"Could not save update check cache: {ex}", "UPDATE");
+        }
+
+        if (_updateTimer.Enabled)
+        {
+            ScheduleNextUpdateCheck();
+        }
+    }
+
+    private async Task CheckForUpdatesInBackgroundAsync()
+    {
+        if (_updateCheckInProgress || IsDisposed || Disposing ||
+            !IsAutomaticUpdateCheckDue())
+        {
+            return;
+        }
+
+        _updateCheckInProgress = true;
+        _checkUpdatesItem.Enabled = false;
+        var cancellationToken = _updateCancellation.Token;
+
+        try
+        {
+            var result = await UpdateChecker.CheckAsync(cancellationToken);
+
+            if (!cancellationToken.IsCancellationRequested && !IsDisposed && !Disposing)
+            {
+                RememberSuccessfulUpdateCheck(result);
+                UpdateAvailableNotice(result);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The application is closing.
+        }
+        catch (Exception ex)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.Write($"Background update check failed: {ex}", "UPDATE");
+            }
+        }
+        finally
+        {
+            _updateCheckInProgress = false;
+            if (!cancellationToken.IsCancellationRequested && !IsDisposed && !Disposing)
+            {
+                _checkUpdatesItem.Enabled = true;
+            }
+        }
+    }
+
     private async Task CheckForUpdatesAsync()
     {
+        if (_updateCheckInProgress)
+        {
+            return;
+        }
+
+        _updateCheckInProgress = true;
+        _checkUpdatesItem.Enabled = false;
+        var cancellationToken = _updateCancellation.Token;
         var previousStatus = _status.Text;
         _status.Text = "Checking for updates...";
 
         try
         {
-            var result = await UpdateChecker.CheckAsync(
-                CancellationToken.None);
+            var result = await UpdateChecker.CheckAsync(cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested || IsDisposed || Disposing)
+            {
+                return;
+            }
+
+            RememberSuccessfulUpdateCheck(result);
+            UpdateAvailableNotice(result);
 
             switch (result.Availability)
             {
@@ -731,8 +924,17 @@ internal sealed class MainForm : Form
                     break;
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The application is closing.
+        }
         catch (Exception ex)
         {
+            if (cancellationToken.IsCancellationRequested || IsDisposed || Disposing)
+            {
+                return;
+            }
+
             _logger.Write(
                 $"Update check failed: {ex}",
                 "ERROR");
@@ -749,7 +951,15 @@ internal sealed class MainForm : Form
         }
         finally
         {
-            _status.Text = previousStatus;
+            _updateCheckInProgress = false;
+            if (!cancellationToken.IsCancellationRequested && !IsDisposed && !Disposing)
+            {
+                _checkUpdatesItem.Enabled = true;
+                if (_status.Text == "Checking for updates...")
+                {
+                    _status.Text = previousStatus;
+                }
+            }
         }
     }
 
@@ -2308,6 +2518,11 @@ internal sealed class MainForm : Form
             e.Cancel = true;
             return;
         }
+
+        _updateTimer.Stop();
+        _updateTimer.Dispose();
+        _updateCancellation.Cancel();
+        _updateCancellation.Dispose();
 
         ThemeManager.ThemeChanged -= ThemeManager_ThemeChanged;
         _downloadQueue.Changed -= DownloadQueue_Changed;
