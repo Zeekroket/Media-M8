@@ -9,7 +9,7 @@ internal static class Program
     private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         _ = SetCurrentProcessExplicitAppUserModelID("Zeekroket.MediaM8");
 
@@ -19,6 +19,12 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.DpiUnaware);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+
+        if (args.Length > 0 && args[0] == "--apply-portable-update")
+        {
+            ApplicationUpdater.ApplyPortableUpdate(args);
+            return;
+        }
 
         using var logger = new SessionLogger(AppPaths.LogsDirectory);
         logger.Write($"Media M8 {AppInfo.Version} session started.");
