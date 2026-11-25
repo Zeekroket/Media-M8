@@ -90,6 +90,7 @@ internal static class RuntimeToolHealthDialog
 
         detailsButton.Click += (_, _) =>
         {
+            dialog.AutoScrollPosition = new Point(0, 0);
             var showDetails = !detailsBox.Visible;
             detailsBox.Visible = showDetails;
             detailsButton.Text = showDetails
@@ -98,15 +99,15 @@ internal static class RuntimeToolHealthDialog
 
             if (showDetails)
             {
-                WindowLayout.SetClientSize(dialog, 560, 420);
                 detailsButton.Location = WindowLayout.Point(dialog, 345, 370);
                 closeButton.Location = WindowLayout.Point(dialog, 460, 370);
+                WindowLayout.SetClientSize(dialog, 560, 420);
             }
             else
             {
-                WindowLayout.SetClientSize(dialog, 560, 210);
                 detailsButton.Location = WindowLayout.Point(dialog, 360, 160);
                 closeButton.Location = WindowLayout.Point(dialog, 460, 160);
+                WindowLayout.SetClientSize(dialog, 560, 210);
             }
         };
 
