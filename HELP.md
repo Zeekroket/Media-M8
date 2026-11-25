@@ -104,6 +104,17 @@ For supported links, Media M8 can show:
 
 Some websites provide less information than others, so not every field will always be shown.
 
+## Updating Media M8
+
+When **Update available** appears, click it or use **Help → Check for Updates**. Choose **Download update** to fetch the matching package for your current distribution. Media M8 verifies the package against the SHA-256 digest published by GitHub before offering to continue.
+
+After the download, confirm the update or choose Cancel. Finish or remove queued downloads before updating.
+
+- **Installed:** Media M8 closes and opens the Windows installer. Complete the installation using its normal prompts.
+- **Portable:** Media M8 closes, replaces its executable and restarts. Existing tools, logs, settings and the portable marker are kept. If replacement fails, the updater reports the problem and attempts to restore the original executable.
+
+If a matching package or its published digest is unavailable, the guided update cannot continue. You can still choose **Open release page**. Nothing is installed without your confirmation.
+
 ## If a download fails
 
 Media M8 shows a plain-language error where possible.
