@@ -21,9 +21,9 @@ You can check or refresh these components later through **Tools → Check downlo
 ## Quick start
 
 1. Copy the link to the video, audio or playlist you want.
-2. Paste it into **Media URL**.
+2. Paste it into **Link to download**.
 3. Wait for the **Preview** to appear so you can check that Media M8 found the right media.
-4. Choose **MP3** or **Video (MKV)**.
+4. Choose **MP3** or **Video**.
 5. Choose the quality you want.
 6. Check the **Save to** folder.
 7. Click **DOWNLOAD**.
@@ -70,7 +70,7 @@ STOP ends the current queue item, including the rest of that item's playlist. If
 
 ## Skip files you already downloaded
 
-When **Skip previously downloaded items (downloaded.txt)** is checked, Media M8 keeps a small history file in the download folder and skips items it has already completed.
+When **Skip items I've downloaded before** is checked, Media M8 skips items it has already completed. Media M8 keeps this history in a small file named `downloaded.txt` in the download folder.
 
 ## Preview
 
