@@ -7,9 +7,8 @@ internal sealed class SessionLogger : IDisposable
     private readonly object _sync = new();
     private readonly StreamWriter _writer;
 
-    public SessionLogger(string baseDirectory)
+    public SessionLogger(string logDirectory)
     {
-        var logDirectory = Path.Combine(baseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
 
         LogFilePath = Path.Combine(
