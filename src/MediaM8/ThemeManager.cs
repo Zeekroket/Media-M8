@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
-using System.Text.Json;
 using System.Windows.Forms;
 
 namespace MediaM8;
@@ -30,9 +29,6 @@ internal static class ThemeManager
     private static readonly Color LightWindow = SystemColors.Control;
     private static readonly Color LightInput = SystemColors.Window;
     private static readonly Color LightText = SystemColors.ControlText;
-
-    private static readonly string SettingsDirectory = AppPaths.DataDirectory;
-    private static readonly string SettingsPath = AppPaths.SettingsPath;
 
     public static event EventHandler? ThemeChanged;
 
@@ -357,27 +353,11 @@ internal static class ThemeManager
 
     private static AppTheme LoadSavedTheme()
     {
-        try
-        {
-            if (!File.Exists(SettingsPath))
-            {
-                return AppTheme.MatchSystem;
-            }
-
-            var json = File.ReadAllText(SettingsPath);
-            var settings = JsonSerializer.Deserialize<ThemeSettings>(json);
-
-            return Enum.TryParse<AppTheme>(
-                settings?.Appearance,
-                ignoreCase: true,
-                out var theme)
+        return Enum.TryParse<AppTheme>(
+            AppSettings.Read("Appearance"), ignoreCase: true, out var theme) &&
+            Enum.IsDefined(theme)
                 ? theme
                 : AppTheme.MatchSystem;
-        }
-        catch
-        {
-            return AppTheme.MatchSystem;
-        }
     }
 
     private static bool ResolveDarkMode()
@@ -408,28 +388,8 @@ internal static class ThemeManager
         }
     }
 
-    private static void SaveTheme(AppTheme theme)
-    {
-        try
-        {
-            Directory.CreateDirectory(SettingsDirectory);
-
-            var json = JsonSerializer.Serialize(
-                new ThemeSettings(theme.ToString()),
-                new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-            File.WriteAllText(
-                SettingsPath,
-                json);
-        }
-        catch
-        {
-            // Theme persistence must never prevent Media M8 from running.
-        }
-    }
+    private static void SaveTheme(AppTheme theme) =>
+        AppSettings.Write(("Appearance", theme.ToString()));
 
     private static IntPtr ColorToWin32(Color color)
     {
@@ -440,8 +400,6 @@ internal static class ThemeManager
 
         return new IntPtr(value);
     }
-
-    private sealed record ThemeSettings(string Appearance);
 
     private sealed class DarkColorTable : ProfessionalColorTable
     {

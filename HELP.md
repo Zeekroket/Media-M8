@@ -48,6 +48,12 @@ Media M8 shows progress at the bottom of the window. After a successful download
 
 When several downloads run in the queue, the final status shows the results. **Open folder** opens the folder of the last completed download. **Open folder when finished** still opens the folder automatically if selected.
 
+## Remembered choices
+
+Media M8 remembers your download folder, MP3 or Video selection and both quality choices when you close the application normally. If a saved folder is no longer available, Media M8 uses its default Downloads folder. Unrecognized saved quality choices use the normal defaults.
+
+The playlist option remains off at every launch. Links and queue contents are not saved. Portable and installed copies keep their own settings, including appearance.
+
 ## Display and keyboard
 
 Media M8 uses the Windows system DPI and text-size setting at launch. Restart Media M8 after changing display scaling or accessibility text size. If a window is larger than the available screen, scroll to reach its controls.
