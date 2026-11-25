@@ -2099,7 +2099,21 @@ internal sealed class MainForm : Form
                     string.Join(", ", missingTools));
             }
 
+            _progressBar.MarqueeAnimationSpeed = 0;
+            _progressBar.Style = ProgressBarStyle.Continuous;
+            _progressBar.Value = 100;
             _status.Text = "Setup complete. Ready to download.";
+
+            MessageBox.Show(
+                this,
+                "Media M8 is ready to use!" +
+                Environment.NewLine +
+                Environment.NewLine +
+                "Click OK to start downloading music or videos.",
+                "Setup complete",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
             return true;
         }
         catch (Exception ex)
