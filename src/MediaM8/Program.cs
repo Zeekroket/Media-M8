@@ -50,9 +50,3 @@ internal static class Program
         logger.Write("Media M8 session ended.");
     }
 }
-
-internal static class AppInfo
-{
-    public const string Name = "Media M8";
-    public const string Version = "0.2.0";
-}
