@@ -105,6 +105,7 @@ internal static class UpdateResultDialog
 
         ThemeManager.Apply(dialog);
 
+        WindowLayout.Prepare(dialog);
         return dialog.ShowDialog(owner) == DialogResult.Yes;
     }
 }
