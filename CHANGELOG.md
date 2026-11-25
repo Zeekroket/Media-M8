@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-26
+
 ### Added
 
 - Remember download folder, MP3/Video selection and quality preferences across sessions using the existing settings file; retain safe playlist defaults.
@@ -70,5 +72,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Runtime dependencies are resolved from Media M8's local `tools` directory only.
 - The original PowerShell implementation is no longer part of the application runtime.
 
-[Unreleased]: https://github.com/Zeekroket/Media-M8/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Zeekroket/Media-M8/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Zeekroket/Media-M8/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Zeekroket/Media-M8/releases/tag/v0.1.0

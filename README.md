@@ -8,7 +8,7 @@ The core workflow is intentionally simple:
 
 ## Status
 
-Current version: **0.1.0**
+Current version: **0.2.0**
 
 Media M8 is under active development and should be considered pre-1.0 software.
 
@@ -16,7 +16,7 @@ Published builds and release notes are available on the [Releases](https://githu
 
 ## Choose your distribution
 
-Each release includes two Windows x64 packages:
+Starting with v0.2.0, releases include two Windows x64 packages:
 
 - `MediaM8-<version>-win-x64-setup.exe`: Windows installer, Start menu shortcut and uninstall support.
 - `MediaM8-<version>-win-x64-portable.zip`: extract and run without installing. Keep the portable marker beside the executable.
@@ -34,20 +34,21 @@ Media M8 currently includes:
 - Playlist preparation and sequential playlist downloading
 - Session-only single-worker download queue
 - Queue window with Pending / Downloading / Completed / Failed / Stopped states
-- Remove-pending and clear-finished queue actions
+- Remove pending, clear finished, retry failed/stopped items and reorder pending downloads
 - Pause Queue / Resume Queue without interrupting the current download
 - Download archive support to avoid duplicate downloads
-- Selectable output folder
+- Remembered output folder, download format and quality preferences
 - Optional opening of the output folder after completion
 - Live download progress, speed and estimated time remaining
 - STOP button for the active download
 - Friendly user-facing error messages with optional technical details
-- Automatic setup of required runtime tools
+- One-step first-run setup of required runtime tools
 - Download-tool health check and manual verified tool refresh
-- Manual Media M8 update check through GitHub Releases
+- Weekly automatic update notification, manual update check and guided verified updates
 - Match System, Light and Dark appearance modes
 - F1 user help and an About Media M8 screen
-- Session logging under `logs/`
+- Session logging under `logs/` in the selected application data location
+- DPI-aware layouts and keyboard navigation
 
 ## Help
 
@@ -103,10 +104,10 @@ To package both release assets after building, install [Inno Setup](https://jrso
 
 ```powershell
 .\scripts\build.ps1 -Sign
-.\scripts\package-release.ps1 -Version 0.1.0 -Sign
+.\scripts\package-release.ps1 -Version 0.2.0 -Sign
 ```
 
-For an unsigned local test, omit `-Sign`. To create just the portable ZIP, run `.\scripts\package.ps1 -Version 0.1.0`. The release process must include both the installer and the portable ZIP.
+For an unsigned local test, omit `-Sign`. To create just the portable ZIP, run `.\scripts\package.ps1 -Version 0.2.0`. The release process must include both the installer and the portable ZIP.
 
 The PowerShell scripts under `scripts/` are developer build helpers only; PowerShell is not part of the Media M8 application runtime.
 
