@@ -31,12 +31,8 @@ internal static class ThemeManager
     private static readonly Color LightInput = SystemColors.Window;
     private static readonly Color LightText = SystemColors.ControlText;
 
-    private static readonly string SettingsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Media M8");
-    private static readonly string SettingsPath = Path.Combine(
-        SettingsDirectory,
-        "settings.json");
+    private static readonly string SettingsDirectory = AppPaths.DataDirectory;
+    private static readonly string SettingsPath = AppPaths.SettingsPath;
 
     public static event EventHandler? ThemeChanged;
 
