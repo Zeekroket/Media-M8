@@ -183,7 +183,7 @@ internal sealed class MainForm : Form
         _chkPlaylist.Text = "Download playlist";
         _chkPlaylist.Location = new Point(20, 339);
         _chkPlaylist.AutoSize = true;
-        _chkPlaylist.Checked = true;
+        _chkPlaylist.Checked = false;
         _chkPlaylist.CheckedChanged += UrlTextBox_TextChanged;
         Controls.Add(_chkPlaylist);
 

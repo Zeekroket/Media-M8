@@ -32,11 +32,13 @@ Media M8 shows progress at the bottom of the window.
 
 ## Playlists
 
-Keep **Download playlist** checked when you want the full playlist.
+**Download playlist** is off by default.
+
+Turn it on when you intentionally want the full playlist, such as an album or a playlist with multiple items.
 
 Media M8 prepares the playlist first so it knows how many items there are. It then downloads the items one at a time.
 
-If you only want the single video from a link that also contains a playlist, clear **Download playlist** before downloading.
+Leave **Download playlist** off when you only want the single video or audio item from the pasted link.
 
 ## Queue several downloads
 
