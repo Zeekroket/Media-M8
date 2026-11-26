@@ -5,6 +5,8 @@ internal enum DownloadQueueState
     Pending,
     Downloading,
     Completed,
+    CompletedWithSkips,
+    Skipped,
     Failed,
     Stopped
 }
@@ -160,6 +162,8 @@ internal sealed class DownloadQueueModel
         var removed = _items.RemoveAll(
             item =>
                 item.State == DownloadQueueState.Completed ||
+                item.State == DownloadQueueState.CompletedWithSkips ||
+                item.State == DownloadQueueState.Skipped ||
                 item.State == DownloadQueueState.Failed ||
                 item.State == DownloadQueueState.Stopped);
 
