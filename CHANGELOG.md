@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Release preflight for version alignment, package contents, requested signatures and SHA-256 digests, with a repeatable manual release checklist.
 - Deterministic regression tests for download progress, queue operations, settings and release asset selection, required before release packaging.
 
 ### Fixed

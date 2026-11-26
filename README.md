@@ -106,7 +106,7 @@ Run the deterministic regression tests (no live downloads or real user settings 
 .\scripts\test.ps1
 ```
 
-Release packaging runs these tests before creating either package and stops if they fail. Manual Windows GUI and update smoke tests remain required.
+Release packaging validates the source and built executable versions, runs the regression tests, then checks both packages and writes their SHA-256 digests. Manual Windows GUI and update smoke tests remain required. Follow [RELEASE.md](RELEASE.md) before publishing either package.
 
 To package both release assets after building, install [Inno Setup](https://jrsoftware.org/isdl.php) 6.3 or newer (the build helper automatically locates Inno Setup 6, or accepts an explicit `-CompilerPath` to ISCC.exe).
 

@@ -9,6 +9,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$preflight = @{
+    Version = $Version
+    Sign = $Sign
+    CertificateSubject = $CertificateSubject
+}
+
+& (Join-Path $PSScriptRoot 'release-preflight.ps1') @preflight -Stage Build
 & (Join-Path $PSScriptRoot 'test.ps1')
 
 $installerArgs = @{
@@ -35,5 +42,6 @@ foreach ($asset in $assets) {
         throw "Release asset missing: $asset"
     }
 }
-Write-Host 'Both release distributions are ready:'
+& (Join-Path $PSScriptRoot 'release-preflight.ps1') @preflight -Stage Packages
+Write-Host 'Both release distributions passed package preflight:'
 $assets | ForEach-Object { Write-Host $_ }
