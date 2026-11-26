@@ -281,6 +281,37 @@ var tests = new (string Name, Action Run)[]
             finally { Directory.Delete(directory, recursive: true); }
         }
     }),
+    ("Exit: idle and finished-only queue needs no confirmation", () =>
+    {
+        var queue = new DownloadQueueModel();
+        Equal<string?>(null, ExitConfirmation.GetMessage(false, queue.PendingCount));
+        var item = queue.Enqueue(Request("finished"));
+        queue.SetState(item, DownloadQueueState.Completed);
+        Equal<string?>(null, ExitConfirmation.GetMessage(false, queue.PendingCount));
+    }),
+    ("Exit: active preparation or download requires confirmation", () =>
+    {
+        var warning = ExitConfirmation.GetMessage(true, 0) ?? throw new Exception("Missing warning.");
+        Equal(true, warning.Contains("active download or playlist preparation will be stopped", StringComparison.Ordinal));
+        Equal(false, warning.Contains("waiting download", StringComparison.Ordinal));
+    }),
+    ("Exit: paused pending queue still requires confirmation", () =>
+    {
+        var queue = new DownloadQueueModel();
+        queue.Enqueue(Request("waiting"));
+        queue.SetPaused(true);
+        var warning = ExitConfirmation.GetMessage(false, queue.PendingCount) ?? throw new Exception("Missing warning.");
+        Equal(true, warning.Contains("The waiting download will be lost.", StringComparison.Ordinal));
+        Equal(false, warning.Contains("active download", StringComparison.Ordinal));
+        Equal(1, queue.PendingCount);
+        Equal(true, queue.IsPaused);
+    }),
+    ("Exit: active and multiple pending items warn about both", () =>
+    {
+        var warning = ExitConfirmation.GetMessage(true, 3) ?? throw new Exception("Missing warning.");
+        Equal(true, warning.Contains("active download or playlist preparation will be stopped", StringComparison.Ordinal));
+        Equal(true, warning.Contains("All 3 waiting downloads will be lost.", StringComparison.Ordinal));
+    }),
     ("Settings: missing and invalid values", () => WithSettings((store, path) =>
     {
         Equal<string?>(null, store.Read("Appearance"));
