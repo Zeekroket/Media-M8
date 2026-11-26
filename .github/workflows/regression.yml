@@ -21,3 +21,15 @@ jobs:
         run: ./scripts/test.ps1
       - name: Compile application
         run: dotnet build src/MediaM8/MediaM8.csproj --configuration Release
+      - name: Verify release source versions
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/MediaM8/MediaM8.csproj -Raw
+          ./scripts/release-preflight.ps1 -Version $project.Project.PropertyGroup.Version -Stage Source
+      - name: Verify unsigned release packages
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/MediaM8/MediaM8.csproj -Raw
+          $version = $project.Project.PropertyGroup.Version
+          ./scripts/build.ps1
+          ./scripts/package-release.ps1 -Version $version
