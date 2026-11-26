@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Deterministic regression tests for download progress, queue operations, settings and release asset selection, required before release packaging.
 
+### Fixed
+
+- Distinguish archive-only skips and mixed download results from fully completed downloads in the queue and final status.
+
 ## [0.2.0] - 2026-11-26
 
 ### Added
