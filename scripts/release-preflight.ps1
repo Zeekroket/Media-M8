@@ -90,23 +90,30 @@ $expectedEntries = @('MediaM8.exe', 'portable.flag', 'LICENSE', 'tools/README.tx
 $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
 try {
     # Read the archive directly. Do not extract or run executables during preflight.
-    $files = @($archive.Entries | Where-Object { -not $_.FullName.EndsWith('/') })
-    Assert-Equal 'Portable file count' $files.Count $expectedEntries.Count
-    foreach ($entry in $files) {
-        if ($expectedEntries -cnotcontains $entry.FullName) {
-            throw "Unexpected portable archive entry: $($entry.FullName)"
+    # Windows PowerShell 5.1 may write backslashes in ZIP entry names.
+    # Normalize only separators; keep exact allowlist and duplicate checks.
+    $entries = @{}
+    $hasToolsDirectory = $false
+    foreach ($entry in $archive.Entries) {
+        $name = $entry.FullName.Replace('\', '/')
+        if ($name.EndsWith('/')) {
+            if ($name -cne 'tools/' -or $hasToolsDirectory -or $entry.Length -ne 0) {
+                throw "Unexpected or duplicate archive directory: $($entry.FullName)"
+            }
+            $hasToolsDirectory = $true
+            continue
         }
+        if ($expectedEntries -cnotcontains $name -or $entries.ContainsKey($name)) {
+            throw "Unexpected or duplicate portable archive entry: $($entry.FullName)"
+        }
+        $entries.Add($name, $entry)
     }
+    Assert-Equal 'Portable file count' $entries.Count $expectedEntries.Count
     foreach ($name in $expectedEntries) {
-        if (@($files | Where-Object { $_.FullName -ceq $name }).Count -ne 1) {
-            throw "Missing or duplicate portable entry: $name"
-        }
+        if (-not $entries.ContainsKey($name)) { throw "Missing portable entry: $name" }
     }
-    foreach ($entry in $archive.Entries | Where-Object { $_.FullName.EndsWith('/') }) {
-        if ($entry.FullName -cne 'tools/') { throw "Unexpected archive directory: $($entry.FullName)" }
-    }
-    Assert-Equal 'Portable marker size' $archive.GetEntry('portable.flag').Length 0
-    $reader = [System.IO.StreamReader]::new($archive.GetEntry('SHA256SUMS.txt').Open())
+    Assert-Equal 'Portable marker size' $entries['portable.flag'].Length 0
+    $reader = [System.IO.StreamReader]::new($entries['SHA256SUMS.txt'].Open())
     try { $manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
     $hashes = @{}
     foreach ($line in ($manifest -split '\r?\n')) {
@@ -121,7 +128,7 @@ try {
     }
     Assert-Equal 'Portable hash count' $hashes.Count ($expectedEntries.Count - 1)
     foreach ($name in $expectedEntries | Where-Object { $_ -cne 'SHA256SUMS.txt' }) {
-        $stream = $archive.GetEntry($name).Open()
+        $stream = $entries[$name].Open()
         try { $actual = Get-StreamHash $stream } finally { $stream.Dispose() }
         Assert-Equal "Portable hash of $name" $actual $hashes[$name]
     }
