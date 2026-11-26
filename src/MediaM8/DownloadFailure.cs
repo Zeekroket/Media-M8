@@ -2,7 +2,9 @@ namespace MediaM8;
 
 internal sealed record DownloadProcessResult(
     int ExitCode,
-    string TechnicalDetails);
+    string TechnicalDetails,
+    bool ArchiveOnly,
+    int ArchiveSkipCount);
 
 internal sealed class DownloadFailureException : Exception
 {

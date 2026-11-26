@@ -91,6 +91,66 @@ var tests = new (string Name, Action Run)[]
         q.SetPaused(false);
         Equal(false, q.IsPaused);
     }),
+    ("Archive: exact skip messages, including title", () =>
+    {
+        var tracker = new ArchiveSkipTracker();
+        tracker.Observe("[download] fixture-id: has already been recorded in the archive");
+        tracker.Observe("[download] fixture-id: Fixture title has already been recorded in the archive");
+        for (var i = 0; i < 40; i++) tracker.Observe("[debug] fixture diagnostic");
+        Equal(2, tracker.ArchiveSkipCount);
+        Equal(true, tracker.IsArchiveOnly(true, 0));
+        Equal(false, tracker.IsArchiveOnly(false, 0));
+        Equal(false, tracker.IsArchiveOnly(true, 1));
+    }),
+    ("Archive: ordinary existing file and unrelated output are not archive skips", () =>
+    {
+        var tracker = new ArchiveSkipTracker();
+        tracker.Observe("[download] fixture.mp3 has already been downloaded");
+        tracker.Observe("WARNING: has already been recorded in the archive");
+        tracker.Observe("[download] has already been recorded in the archive but more text follows");
+        Equal(0, tracker.ArchiveSkipCount);
+        Equal(false, tracker.IsArchiveOnly(true, 0));
+    }),
+    ("Archive: progress and skip in one process", () =>
+    {
+        var tracker = new ArchiveSkipTracker();
+        tracker.Observe("[download] fixture-id: has already been recorded in the archive");
+        tracker.Observe(DownloadProgressParser.Marker + "download|" + """{"status":"finished"}""");
+        Equal(1, tracker.ArchiveSkipCount);
+        Equal(false, tracker.IsArchiveOnly(true, 0));
+    }),
+    ("Archive: fully skipped, normal and mixed plans", () =>
+    {
+        var skipped = new DownloadItemResults();
+        skipped.Record(true, 1);
+        skipped.Record(true, 1);
+        Equal(DownloadQueueState.Skipped, skipped.State);
+        Equal(0, skipped.Completed);
+        Equal(2, skipped.Skipped);
+        var mixed = new DownloadItemResults();
+        mixed.Record(false, 0);
+        mixed.Record(true, 1);
+        mixed.Record(false, 0);
+        Equal(DownloadQueueState.CompletedWithSkips, mixed.State);
+        Equal("2 completed, 1 skipped", mixed.Detail);
+        var normal = new DownloadItemResults();
+        normal.Record(false, 0);
+        Equal(DownloadQueueState.Completed, normal.State);
+    }),
+    ("Archive: skip results are terminal and not retryable", () =>
+    {
+        var q = new DownloadQueueModel();
+        var a = q.Enqueue(Request("a"));
+        var b = q.Enqueue(Request("b"));
+        var c = q.Enqueue(Request("c"));
+        q.SetState(a, DownloadQueueState.Skipped);
+        q.SetState(b, DownloadQueueState.CompletedWithSkips);
+        Equal<DownloadQueueItem?>(null, q.Retry(a.Id));
+        Equal<DownloadQueueItem?>(null, q.Retry(b.Id));
+        Equal(c, q.GetNextPending());
+        Equal(2, q.ClearFinished());
+        Equal(1, q.Items.Count);
+    }),
     ("Settings: missing and invalid values", () => WithSettings((store, path) =>
     {
         Equal<string?>(null, store.Read("Appearance"));
