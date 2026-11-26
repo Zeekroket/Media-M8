@@ -28,6 +28,9 @@ internal sealed record FriendlyDownloadFailure(
 {
     public static FriendlyDownloadFailure From(Exception exception)
     {
+        if (exception is DestinationFolderException destination)
+            return ForDestination(destination.Problem);
+
         var technicalDetails = exception is DownloadFailureException downloadFailure
             ? downloadFailure.TechnicalDetails
             : exception.ToString();
@@ -35,6 +38,10 @@ internal sealed record FriendlyDownloadFailure(
         var haystack =
             (exception.Message + Environment.NewLine + technicalDetails)
             .ToLowerInvariant();
+
+        if (exception is DownloadFailureException &&
+            TryGetStorageProblem(technicalDetails) is { } storageProblem)
+            return ForDestination(storageProblem);
 
         if (ContainsAny(
                 haystack,
@@ -123,11 +130,7 @@ internal sealed record FriendlyDownloadFailure(
                 "not enough space",
                 "insufficient disk space"))
         {
-            return new FriendlyDownloadFailure(
-                "Not enough free space",
-                "There is not enough free space to finish this download.",
-                "Free some space or choose another Save to folder, then try again.",
-                "Not enough free space.");
+            return ForDestination(DestinationProblem.DiskFull);
         }
 
         // Match the actual yt-dlp error line, not arbitrary titles or warnings.
@@ -148,6 +151,55 @@ internal sealed record FriendlyDownloadFailure(
             "Media M8 could not finish this download.",
             "Check the link and your internet connection, then try again.",
             "Download could not be completed.");
+    }
+
+    private static FriendlyDownloadFailure ForDestination(DestinationProblem problem) =>
+        problem switch
+        {
+            DestinationProblem.DiskFull => new(
+                "Not enough free space",
+                "There is not enough free space to finish this download.",
+                "Free some space or choose another Save to folder, then try again.",
+                "Not enough free space."),
+            DestinationProblem.AccessDenied => new(
+                "Cannot write to download folder",
+                "Media M8 or its download tool does not have permission to write the required files.",
+                "Check folder permissions or choose another Save to folder, then try again.",
+                "Cannot write to download folder."),
+            _ => new(
+                "Download folder unavailable",
+                "Media M8 cannot access the selected download folder.",
+                "Reconnect the drive, check the folder or choose another Save to folder.",
+                "Download folder unavailable.")
+        };
+
+    private static DestinationProblem? TryGetStorageProblem(string details)
+    {
+        foreach (var raw in details.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase) &&
+                !line.StartsWith("PermissionError:", StringComparison.OrdinalIgnoreCase) &&
+                !line.StartsWith("OSError:", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (ContainsAny(line, "no space left on device", "disk full", "not enough space on the disk",
+                "[errno 28]", "[winerror 112]", "[winerror 39]"))
+                return DestinationProblem.DiskFull;
+
+            // Distinguish local filesystem permissions from HTTP 403/website access.
+            var fileContext = ContainsAny(line, "unable to open for writing", "unable to create directory",
+                "postprocessing:", "error opening output", "permissionerror:", "unable to write");
+            if (ContainsAny(line, "[errno 13]", "[winerror 5]", "[winerror 19]", "read-only file system") ||
+                (fileContext && ContainsAny(line, "permission denied", "access is denied", "access denied")))
+                return DestinationProblem.AccessDenied;
+
+            if (fileContext && ContainsAny(line, "no such file or directory", "[winerror 3]",
+                "[winerror 15]", "[winerror 21]", "the device is not ready", "network path was not found"))
+                return DestinationProblem.Unavailable;
+        }
+
+        return null;
     }
 
     private static bool IsKnownVkExtractorFailure(string details)

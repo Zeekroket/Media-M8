@@ -312,6 +312,77 @@ var tests = new (string Name, Action Run)[]
         Equal(true, warning.Contains("active download or playlist preparation will be stopped", StringComparison.Ordinal));
         Equal(true, warning.Contains("All 3 waiting downloads will be lost.", StringComparison.Ordinal));
     }),
+    ("Destination: create new folder, verify write access and preserve existing files", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var folder = Path.Combine(Path.GetDirectoryName(path)!, "downloads");
+            DestinationFolder.Validate(folder, createIfMissing: true);
+            Equal(true, Directory.Exists(folder));
+            Equal(0, Directory.GetFiles(folder).Length);
+            var existing = Path.Combine(folder, "existing.txt");
+            File.WriteAllText(existing, "keep");
+            DestinationFolder.Validate(folder, createIfMissing: false);
+            Equal("keep", File.ReadAllText(existing));
+            Equal(1, Directory.GetFiles(folder).Length);
+        });
+    }),
+    ("Destination: missing queued folder is not recreated", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var folder = Path.Combine(Path.GetDirectoryName(path)!, "missing");
+            DestinationFolder.Validate(folder, createIfMissing: true);
+            Directory.Delete(folder);
+            Throws<DestinationFolderException>(() => DestinationFolder.Validate(folder, createIfMissing: false));
+            Equal(false, Directory.Exists(folder));
+        });
+    }),
+    ("Destination: reject a file or relative path", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            File.WriteAllText(path, "keep");
+            Throws<DestinationFolderException>(() => DestinationFolder.Validate(path, createIfMissing: true));
+            Throws<DestinationFolderException>(() => DestinationFolder.Validate("relative-fixture", createIfMissing: true));
+            Equal("keep", File.ReadAllText(path));
+        });
+    }),
+    ("Destination: classify exact filesystem HRESULTs", () =>
+    {
+        Equal(DestinationProblem.AccessDenied, DestinationFolder.Classify(new UnauthorizedAccessException()));
+        Equal(DestinationProblem.AccessDenied, DestinationFolder.Classify(new IOException("write protected", unchecked((int)0x80070013))));
+        Equal(DestinationProblem.DiskFull, DestinationFolder.Classify(new IOException("disk full", unchecked((int)0x80070070))));
+        Equal(DestinationProblem.DiskFull, DestinationFolder.Classify(new IOException("disk full", unchecked((int)0x80070027))));
+        Equal(DestinationProblem.Unavailable, DestinationFolder.Classify(new DirectoryNotFoundException()));
+        Equal(DestinationProblem.Unavailable, DestinationFolder.Classify(new IOException("unknown")));
+    }),
+    ("Destination: validation failures preserve path and inner exception", () =>
+    {
+        var inner = new UnauthorizedAccessException("fixture permission error");
+        var error = new DestinationFolderException("fixture-folder", DestinationProblem.AccessDenied, inner);
+        Equal("Cannot write to download folder", FriendlyDownloadFailure.From(error).Title);
+        Equal(true, error.ToString().Contains("fixture-folder", StringComparison.Ordinal));
+        Equal<Exception?>(inner, error.InnerException);
+        Equal("Download folder unavailable", FriendlyDownloadFailure.From(new DestinationFolderException("fixture", DestinationProblem.Unavailable, new IOException())).Title);
+        Equal("Not enough free space", FriendlyDownloadFailure.From(new DestinationFolderException("fixture", DestinationProblem.DiskFull, new IOException())).Title);
+    }),
+    ("Destination: yt-dlp and ffmpeg filesystem failures", () =>
+    {
+        foreach (var (details, title) in new[]
+        {
+            ("ERROR: unable to open for writing: [Errno 13] Permission denied", "Cannot write to download folder"),
+            ("ERROR: Postprocessing: output.mp3: Permission denied", "Cannot write to download folder"),
+            ("ERROR: [WinError 5] Access is denied", "Cannot write to download folder"),
+            ("ERROR: Postprocessing: No space left on device", "Not enough free space"),
+            ("ERROR: [WinError 112] There is not enough space on the disk", "Not enough free space"),
+            ("ERROR: unable to open for writing: [Errno 2] No such file or directory", "Download folder unavailable"),
+            ("ERROR: unable to create directory: [WinError 21] The device is not ready", "Download folder unavailable"),
+            ("ERROR: HTTP Error 403: Forbidden", "Download could not be completed"),
+            ("ERROR: HTTP Error 403: Access denied", "Download could not be completed")
+        })
+            Equal(title, FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", details)).Title);
+    }),
     ("Settings: missing and invalid values", () => WithSettings((store, path) =>
     {
         Equal<string?>(null, store.Read("Appearance"));
