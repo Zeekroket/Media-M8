@@ -6,6 +6,8 @@
 AppId=Zeekroket.MediaM8
 AppName=Media M8
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}.0
+VersionInfoProductVersion={#AppVersion}.0
 AppPublisher=Zeekroket
 AppPublisherURL=https://github.com/Zeekroket/Media-M8
 AppSupportURL=https://github.com/Zeekroket/Media-M8/issues
