@@ -67,6 +67,7 @@ internal sealed class MainForm : Form
     private readonly Label _status = new();
 
     private Process? _downloadProcess;
+    private CancellationTokenSource? _itemCancellation;
     private CancellationTokenSource? _previewCancellation;
     private QueueWindow? _queueWindow;
     private DownloadQueueItem? _activeQueueItem;
@@ -1632,7 +1633,7 @@ internal sealed class MainForm : Form
 
     private void StopButton_Click(object? sender, EventArgs e)
     {
-        if (_downloadProcess is null || _stopRequested)
+        if (_itemCancellation is null || _stopRequested)
         {
             return;
         }
@@ -1642,9 +1643,11 @@ internal sealed class MainForm : Form
         _status.Text = "Stopping download...";
         _logger.Write("User requested download stop.", "UI");
 
+        _itemCancellation.Cancel();
+
         try
         {
-            if (!_downloadProcess.HasExited)
+            if (_downloadProcess is { HasExited: false })
             {
                 _downloadProcess.Kill(entireProcessTree: true);
             }
@@ -1958,6 +1961,9 @@ internal sealed class MainForm : Form
         AddUiLog(string.Empty);
 
         _stopRequested = false;
+        using var itemCancellation = new CancellationTokenSource();
+        _itemCancellation = itemCancellation;
+        var cancellationToken = itemCancellation.Token;
 
         SetDownloadProgress(new DownloadProgressSnapshot(
             DownloadPhase.Preparing,
@@ -1971,6 +1977,7 @@ internal sealed class MainForm : Form
         if (request.DownloadPlaylist)
         {
             _status.Text = "Preparing playlist...";
+            SetStopAvailable(true);
         }
 
         try
@@ -1982,8 +1989,9 @@ internal sealed class MainForm : Form
                 IsYouTubeUrl(request.Url),
                 runtimeTools.Deno,
                 _logger,
-                CancellationToken.None);
+                cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (plan.IsPlaylist)
             {
                 AddUiLog(
@@ -1994,6 +2002,7 @@ internal sealed class MainForm : Form
             var itemResults = new DownloadItemResults();
             foreach (var item in plan.Items)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 SetPreparingItem(
                     item.Index,
                     item.Total);
@@ -2072,7 +2081,7 @@ internal sealed class MainForm : Form
 
             return new QueueItemOutcome(itemResults.State, itemResults.Detail);
         }
-        catch (OperationCanceledException) when (_stopRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _stopRequested)
         {
             AddUiLog(string.Empty);
             AddUiLog("Download stopped.");
@@ -2120,6 +2129,7 @@ internal sealed class MainForm : Form
             SetStopAvailable(false);
             _downloadProcess?.Dispose();
             _downloadProcess = null;
+            _itemCancellation = null;
             _stopRequested = false;
         }
     }
@@ -2835,6 +2845,9 @@ internal sealed class MainForm : Form
             e.Cancel = true;
             return;
         }
+
+        // Kill playlist preparation synchronously before the form exits.
+        _itemCancellation?.Cancel();
 
         SaveDownloadPreferences();
 
