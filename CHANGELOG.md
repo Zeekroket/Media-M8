@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Wait for application exit before starting either update mode, verify the installer again at handoff and safely clean marked temporary update workspaces while preserving recovery backups.
 - Validate destination folders before queuing and at execution, and explain storage and permission errors without guessing required disk space.
 - Confirm application exit with active or pending downloads and finish process cleanup before closing.
 - Allow STOP during playlist preparation, terminate the preparation process on cancellation, and continue with the next queued request.
