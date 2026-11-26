@@ -1235,9 +1235,11 @@ internal sealed class MainForm : Form
         }
         finally
         {
-            if (!handedOff && update is not null)
+            if (update is not null)
             {
-                ApplicationUpdater.Cleanup(update.Directory);
+                update.Workspace.Dispose();
+                if (!handedOff)
+                    ApplicationUpdater.Cleanup(update.Directory);
             }
             _progressBar.MarqueeAnimationSpeed = 0;
             _progressBar.Style = ProgressBarStyle.Continuous;
