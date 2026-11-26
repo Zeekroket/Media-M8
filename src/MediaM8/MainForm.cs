@@ -1786,6 +1786,8 @@ internal sealed class MainForm : Form
         UpdateQueueButtonText();
 
         var completed = 0;
+        var mixed = 0;
+        var skipped = 0;
         var failed = 0;
         var stopped = 0;
 
@@ -1804,27 +1806,23 @@ internal sealed class MainForm : Form
                     $"Starting queued item #{queueItem.Id}: " +
                     queueItem.Request.DisplayName);
 
-                var state = await ProcessQueueItemAsync(
-                    queueItem.Request);
+                var outcome = await ProcessQueueItemAsync(queueItem.Request);
+                var state = outcome.State;
 
-                var statusDetail = state switch
-                {
-                    DownloadQueueState.Completed => "Completed",
-                    DownloadQueueState.Stopped => "Stopped by user",
-                    DownloadQueueState.Failed => "Download failed",
-                    _ => queueItem.StatusDetail
-                };
-
-                _downloadQueue.SetState(
-                    queueItem,
-                    state,
-                    statusDetail);
+                _downloadQueue.SetState(queueItem, state, outcome.Detail);
 
                 switch (state)
                 {
                     case DownloadQueueState.Completed:
                         completed++;
                         _completedFolder = queueItem.Request.Folder;
+                        break;
+                    case DownloadQueueState.CompletedWithSkips:
+                        mixed++;
+                        _completedFolder = queueItem.Request.Folder;
+                        break;
+                    case DownloadQueueState.Skipped:
+                        skipped++;
                         break;
                     case DownloadQueueState.Failed:
                         failed++;
@@ -1835,7 +1833,7 @@ internal sealed class MainForm : Form
                 }
 
                 AddUiLog(
-                    $"Queue item #{queueItem.Id}: {state}.");
+                    $"Queue item #{queueItem.Id}: {outcome.Detail}.");
 
                 if (_downloadQueue.PendingCount > 0)
                 {
@@ -1865,16 +1863,14 @@ internal sealed class MainForm : Form
             else
             {
                 AddUiLog(
-                    $"Queue finished: {completed} completed, " +
-                    $"{failed} failed, {stopped} stopped.");
-                if (completed == 1 && failed == 0 && stopped == 0)
-                {
-                    _status.Text = "Download completed.";
-                }
-                else if (completed + failed + stopped > 1)
+                    $"Queue finished: {completed} completed, {mixed} with skips, " +
+                    $"{skipped} skipped, {failed} failed, {stopped} stopped.");
+                if (completed + mixed + skipped + failed + stopped > 1)
                 {
                     var results = new List<string>();
                     if (completed > 0) results.Add($"{completed} completed");
+                    if (mixed > 0) results.Add($"{mixed} with skips");
+                    if (skipped > 0) results.Add($"{skipped} skipped");
                     if (failed > 0) results.Add($"{failed} failed");
                     if (stopped > 0) results.Add($"{stopped} stopped");
 
@@ -1884,7 +1880,7 @@ internal sealed class MainForm : Form
         }
     }
 
-    private async Task<DownloadQueueState> ProcessQueueItemAsync(
+    private async Task<QueueItemOutcome> ProcessQueueItemAsync(
         DownloadRequest request)
     {
         var toolsDirectory = AppPaths.ToolsDirectory;
@@ -1910,7 +1906,7 @@ internal sealed class MainForm : Form
         {
             if (!await EnsureFirstRunSetupAsync())
             {
-                return DownloadQueueState.Failed;
+                return new QueueItemOutcome(DownloadQueueState.Failed, "Download failed");
             }
 
             runtimeTools = RuntimeToolManager.GetToolPaths(toolsDirectory);
@@ -1922,7 +1918,7 @@ internal sealed class MainForm : Form
             runtimeTools.Deno is null)
         {
             _status.Text = "Required tools are missing.";
-            return DownloadQueueState.Failed;
+            return new QueueItemOutcome(DownloadQueueState.Failed, "Download failed");
         }
 
         AddUiLog($"Output folder: {request.Folder}");
@@ -1972,6 +1968,7 @@ internal sealed class MainForm : Form
                 AddUiLog(string.Empty);
             }
 
+            var itemResults = new DownloadItemResults();
             foreach (var item in plan.Items)
             {
                 SetPreparingItem(
@@ -1988,7 +1985,8 @@ internal sealed class MainForm : Form
 
                 var result = await RunDownloadAsync(
                     runtimeTools.YtDlp,
-                    arguments);
+                    arguments,
+                    request.SkipPreviouslyDownloaded);
 
                 if (_stopRequested)
                 {
@@ -2004,6 +2002,22 @@ internal sealed class MainForm : Form
                         Environment.NewLine +
                         result.TechnicalDetails);
                 }
+
+                itemResults.Record(result.ArchiveOnly, result.ArchiveSkipCount);
+                if (result.ArchiveOnly)
+                {
+                    AddUiLog($"Item {item.Index}: Skipped — already downloaded.");
+                }
+            }
+
+            if (itemResults.State == DownloadQueueState.Skipped)
+            {
+                _progressBar.Style = ProgressBarStyle.Continuous;
+                _progressBar.MarqueeAnimationSpeed = 0;
+                _progressBar.Value = 0;
+                _status.Text = itemResults.Detail + ".";
+                AddUiLog(_status.Text);
+                return new QueueItemOutcome(itemResults.State, itemResults.Detail);
             }
 
             SetDownloadProgress(new DownloadProgressSnapshot(
@@ -2016,8 +2030,12 @@ internal sealed class MainForm : Form
                 "completed"));
 
             AddUiLog(string.Empty);
-            AddUiLog("Done.");
-            _status.Text = "Download completed.";
+            _status.Text = itemResults.State == DownloadQueueState.CompletedWithSkips
+                ? itemResults.Detail + "."
+                : "Download completed.";
+            AddUiLog(itemResults.State == DownloadQueueState.CompletedWithSkips
+                ? _status.Text
+                : "Done.");
 
             if (request.OpenFolderWhenFinished &&
                 Directory.Exists(request.Folder))
@@ -2029,7 +2047,7 @@ internal sealed class MainForm : Form
                 });
             }
 
-            return DownloadQueueState.Completed;
+            return new QueueItemOutcome(itemResults.State, itemResults.Detail);
         }
         catch (OperationCanceledException) when (_stopRequested)
         {
@@ -2044,7 +2062,7 @@ internal sealed class MainForm : Form
             _progressBar.Value = 0;
             _status.Text = "Download stopped.";
 
-            return DownloadQueueState.Stopped;
+            return new QueueItemOutcome(DownloadQueueState.Stopped, "Stopped by user");
         }
         catch (Exception ex)
         {
@@ -2072,7 +2090,7 @@ internal sealed class MainForm : Form
                 technicalDetails,
                 _logger.LogFilePath);
 
-            return DownloadQueueState.Failed;
+            return new QueueItemOutcome(DownloadQueueState.Failed, "Download failed");
         }
         finally
         {
@@ -2200,22 +2218,23 @@ internal sealed class MainForm : Form
 
     private async Task<DownloadProcessResult> RunDownloadAsync(
         string ytDlpPath,
-        IReadOnlyList<string> arguments)
+        IReadOnlyList<string> arguments,
+        bool archiveEnabled)
     {
         var recentOutput = new Queue<string>();
+        var tracker = new ArchiveSkipTracker();
         var outputLock = new object();
 
         void CaptureOutput(string line)
         {
-            if (line.StartsWith(
-                    DownloadProgressParser.Marker,
-                    StringComparison.Ordinal))
-            {
-                return;
-            }
-
             lock (outputLock)
             {
+                if (archiveEnabled) tracker.Observe(line);
+                if (line.StartsWith(DownloadProgressParser.Marker, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 recentOutput.Enqueue(line);
 
                 while (recentOutput.Count > 30)
@@ -2295,7 +2314,9 @@ internal sealed class MainForm : Form
 
         return new DownloadProcessResult(
             process.ExitCode,
-            technicalDetails);
+            technicalDetails,
+            tracker.IsArchiveOnly(archiveEnabled, process.ExitCode),
+            archiveEnabled && process.ExitCode == 0 ? tracker.ArchiveSkipCount : 0);
     }
 
     private void SetStopAvailable(bool available)
