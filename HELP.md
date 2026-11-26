@@ -91,7 +91,7 @@ From the queue window you can:
 
 Pause Queue does not pause the download that is already running. Retrying and reordering while paused do not resume the queue. The active download cannot be moved.
 
-The queue only exists for the current Media M8 session.
+The queue only exists for the current Media M8 session. If you close Media M8 while a download is active or items are waiting (including a paused queue), Media M8 asks for confirmation. Choose **No** to keep the application and queue running normally. Choose **Yes** to stop the active download, if any, discard waiting items and close Media M8. Already downloaded files are kept.
 
 ## Stop a download
 
