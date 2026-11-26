@@ -700,20 +700,43 @@ internal sealed class MainForm : Form
             !_queueWindow.IsDisposed)
         {
             _queueWindow.Show();
-            _queueWindow.BringToFront();
+            if (_queueWindow.WindowState == FormWindowState.Minimized)
+            {
+                _queueWindow.WindowState = FormWindowState.Normal;
+            }
+
+            _queueWindow.Activate();
             return;
         }
 
-        _queueWindow = new QueueWindow(
+        var window = new QueueWindow(
             _downloadQueue,
-            ProcessDownloadQueueAsync);
+            ProcessDownloadQueueAsync)
+        {
+            // Place the independent window on the main window's monitor.
+            Location = Location
+        };
 
-        _queueWindow.FormClosed += (_, _) =>
+        _queueWindow = window;
+        window.Load += (_, _) =>
+        {
+            // Center after the existing DPI-aware layout has run.
+            var area = Screen.FromControl(this).WorkingArea;
+            window.Location = new Point(
+                Math.Clamp(Left + (Width - window.Width) / 2,
+                    area.Left, Math.Max(area.Left, area.Right - window.Width)),
+                Math.Clamp(Top + (Height - window.Height) / 2,
+                    area.Top, Math.Max(area.Top, area.Bottom - window.Height)));
+        };
+        window.FormClosed += (_, _) =>
         {
             _queueWindow = null;
         };
 
-        _queueWindow.Show(this);
+        // Do not assign the main form as Owner: owned windows always stay
+        // above their owner. MainForm_FormClosing handles the lifetime.
+        window.Show();
+        window.Activate();
     }
 
     protected override void WndProc(ref Message m)

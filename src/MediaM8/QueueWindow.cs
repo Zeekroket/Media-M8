@@ -24,7 +24,7 @@ internal sealed class QueueWindow : Form
         _resumeQueueAsync = resumeQueueAsync;
 
         Text = "Media M8 Queue";
-        StartPosition = FormStartPosition.CenterParent;
+        StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(705, 381);
         MinimumSize = new Size(620, 340);
         Font = new Font("Segoe UI", 9f);
