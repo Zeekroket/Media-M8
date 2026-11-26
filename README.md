@@ -8,7 +8,7 @@ The core workflow is intentionally simple:
 
 ## Status
 
-Current version: **0.2.0**
+Current version: **0.3.0**
 
 Media M8 is under active development and should be considered pre-1.0 software.
 
@@ -112,10 +112,10 @@ To package both release assets after building, install [Inno Setup](https://jrso
 
 ```powershell
 .\scripts\build.ps1 -Sign
-.\scripts\package-release.ps1 -Version 0.2.0 -Sign
+.\scripts\package-release.ps1 -Version 0.3.0 -Sign
 ```
 
-For an unsigned local test, omit `-Sign`. To create just the portable ZIP, run `.\scripts\package.ps1 -Version 0.2.0`. The release process must include both the installer and the portable ZIP.
+For an unsigned local test, omit `-Sign`. To create just the portable ZIP, run `.\scripts\package.ps1 -Version 0.3.0`. The release process must include both the installer and the portable ZIP.
 
 The PowerShell scripts under `scripts/` are developer build helpers only; PowerShell is not part of the Media M8 application runtime.
 
