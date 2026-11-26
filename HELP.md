@@ -95,7 +95,7 @@ The queue only exists for the current Media M8 session.
 
 ## Stop a download
 
-Click **STOP** while a download is active.
+Click **STOP** while a download is active or while Media M8 is preparing a playlist.
 
 STOP ends the current queue item, including the rest of that item's playlist. If other queue items are waiting, Media M8 continues with the next one.
 

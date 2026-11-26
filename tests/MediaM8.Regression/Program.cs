@@ -1,6 +1,22 @@
+using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MediaM8;
+
+// Local child-process fixtures; no yt-dlp or network access required.
+if (args is ["--playlist-fixture"])
+{
+    Console.WriteLine("fixture stdout");
+    Console.Error.WriteLine("fixture stderr");
+    return 0;
+}
+if (args is ["--playlist-fixture-wait", var readyPath])
+{
+    File.WriteAllText(readyPath, Environment.ProcessId.ToString());
+    Thread.Sleep(TimeSpan.FromSeconds(30));
+    return 0;
+}
 
 var tests = new (string Name, Action Run)[]
 {
@@ -188,6 +204,83 @@ var tests = new (string Name, Action Run)[]
         })
             Equal(expected, FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", details)).Title);
     }),
+    ("Playlist process: normal exit drains both output streams", () =>
+    {
+        var output = PlaylistProcessRunner.RunAsync(
+            PlaylistFixture("--playlist-fixture"), CancellationToken.None,
+            ex => throw new Exception("Unexpected cancellation failure.", ex))
+            .WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+        Equal(0, output.ExitCode);
+        Equal("fixture stdout", output.Stdout.Trim());
+        Equal("fixture stderr", output.Stderr.Trim());
+    }),
+    ("Playlist process: cancellation before start", () =>
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        // The deliberately invalid executable must never be started.
+        var start = new ProcessStartInfo("nonexistent-media-m8-fixture-executable");
+        Throws<OperationCanceledException>(() =>
+            PlaylistProcessRunner.RunAsync(start, cts.Token, _ => { })
+                .GetAwaiter().GetResult());
+    }),
+    ("Playlist process: STOP terminates active child and drains pipes", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "MediaM8-playlist-fixture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var readyPath = Path.Combine(directory, "ready");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        Exception? stopError = null;
+        var task = PlaylistProcessRunner.RunAsync(
+            PlaylistFixture("--playlist-fixture-wait", readyPath), cts.Token,
+            ex => stopError = ex);
+        int pid = 0;
+        try
+        {
+            var timer = Stopwatch.StartNew();
+            while (timer.Elapsed < TimeSpan.FromSeconds(10) && !task.IsCompleted)
+            {
+                if (File.Exists(readyPath) && int.TryParse(File.ReadAllText(readyPath), out pid))
+                    break;
+                Thread.Sleep(25);
+            }
+            if (pid <= 0)
+                throw new Exception("The fixture did not start.");
+            cts.Cancel();
+            Throws<OperationCanceledException>(() =>
+                task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult());
+            Equal<Exception?>(null, stopError);
+            try
+            {
+                using var child = Process.GetProcessById(pid);
+                Equal(true, child.HasExited);
+            }
+            catch (ArgumentException)
+            {
+                // The child no longer exists.
+            }
+        }
+        finally
+        {
+            cts.Cancel();
+            try { task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+            catch (TimeoutException)
+            {
+                if (pid > 0)
+                {
+                    try
+                    {
+                        using var child = Process.GetProcessById(pid);
+                        if (!child.HasExited) child.Kill(entireProcessTree: true);
+                        child.WaitForExit(5000);
+                    }
+                    catch (ArgumentException) { }
+                }
+            }
+            finally { Directory.Delete(directory, recursive: true); }
+        }
+    }),
     ("Settings: missing and invalid values", () => WithSettings((store, path) =>
     {
         Equal<string?>(null, store.Read("Appearance"));
@@ -284,6 +377,23 @@ static DownloadProgressSnapshot Progress(string kind, string json)
     if (!DownloadProgressParser.TryParse(DownloadProgressParser.Marker + kind + "|" + json, out var p) || p is null)
         throw new Exception("Progress was not parsed.");
     return p;
+}
+
+static ProcessStartInfo PlaylistFixture(params string[] arguments)
+{
+    var executable = Environment.ProcessPath ?? throw new Exception("Missing fixture executable.");
+    var start = new ProcessStartInfo(executable)
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+    if (Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+        start.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+    foreach (var argument in arguments)
+        start.ArgumentList.Add(argument);
+    return start;
 }
 
 static DownloadRequest Request(string id) =>

@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Allow STOP during playlist preparation, terminate the preparation process on cancellation, and continue with the next queued request.
 - Explain the known VK extractor failure and recommend updating the download tools without changing extractor behavior.
 - Allow independent activation of the main and queue windows while keeping a single queue window per session.
 - Distinguish archive-only skips and mixed download results from fully completed downloads in the queue and final status.
