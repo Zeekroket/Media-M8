@@ -129,7 +129,7 @@ If a matching package or its published digest is unavailable, the guided update 
 
 ## If a download fails
 
-Media M8 shows a plain-language error where possible.
+Media M8 shows a plain-language error where possible. If it recognizes a known download-tool problem, try **Tools → Update download tools** and retry later. Some website or extractor problems require a fix in the download tool; updating does not guarantee that the link will work immediately.
 
 Choose **Details...** in the error window if you need the technical information. You can also open the session logs through **Tools → Open logs**.
 
