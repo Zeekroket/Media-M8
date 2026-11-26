@@ -78,7 +78,7 @@ While it is running, paste another link and choose its settings. The button chan
 
 Media M8 downloads exactly one queue item at a time and automatically starts the next waiting item when the current one finishes.
 
-Open **Queue → Open Queue** to see the current session queue. The queue window shows each item as Pending, Downloading, Completed, Failed or Stopped.
+Open **Queue → Open Queue** to see the current session queue. The queue window shows each item as Pending, Downloading, Completed, With skips, Skipped, Failed or Stopped.
 
 From the queue window you can:
 
@@ -102,7 +102,7 @@ STOP ends the current queue item, including the rest of that item's playlist. If
 
 ## Skip files you already downloaded
 
-When **Skip items I've downloaded before** is checked, Media M8 skips items it has already completed. Media M8 keeps this history in a small file named `downloaded.txt` in the download folder.
+When **Skip items I've downloaded before** is checked, Media M8 skips items recorded in the download archive. Archive-only results are marked **Skipped — already downloaded** instead of Completed, and do not open the output folder. Playlists with both completed and archive-skipped items show **With skips** and their result counts. Queue summaries count queued requests, not individual playlist files. Media M8 keeps this history in a small file named `downloaded.txt` in the download folder.
 
 ## Preview
 
