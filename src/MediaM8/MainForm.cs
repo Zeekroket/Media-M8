@@ -72,6 +72,8 @@ internal sealed class MainForm : Form
     private QueueWindow? _queueWindow;
     private DownloadQueueItem? _activeQueueItem;
     private bool _queueWorkerRunning;
+    private bool _exitRequested;
+    private bool _exitPromptOpen;
     private bool _stopRequested;
     private int _currentItemIndex = 1;
     private int _currentItemCount = 1;
@@ -1249,6 +1251,8 @@ internal sealed class MainForm : Form
 
         if (handedOff)
         {
+            // The update flow has its own explicit confirmation and requires an idle queue.
+            _exitRequested = true;
             Close();
         }
     }
@@ -1793,7 +1797,7 @@ internal sealed class MainForm : Form
 
     private async Task ProcessDownloadQueueAsync()
     {
-        if (_queueWorkerRunning)
+        if (_queueWorkerRunning || _exitRequested)
         {
             return;
         }
@@ -1819,7 +1823,7 @@ internal sealed class MainForm : Form
 
         try
         {
-            while (!_downloadQueue.IsPaused &&
+            while (!_exitRequested && !_downloadQueue.IsPaused &&
                    _downloadQueue.GetNextPending() is { } queueItem)
             {
                 _activeQueueItem = queueItem;
@@ -1878,7 +1882,13 @@ internal sealed class MainForm : Form
 
             AddUiLog(string.Empty);
 
-            if (_downloadQueue.IsPaused &&
+            if (_exitRequested)
+            {
+                // Finish the worker and its process cleanup before closing.
+                _status.Text = "Closing Media M8...";
+                BeginInvoke((Action)Close);
+            }
+            else if (_downloadQueue.IsPaused &&
                 _downloadQueue.PendingCount > 0)
             {
                 AddUiLog(
@@ -2116,11 +2126,14 @@ internal sealed class MainForm : Form
             _progressBar.Value = 0;
             _status.Text = failure.Status;
 
-            FriendlyErrorDialog.Show(
-                this,
-                failure,
-                technicalDetails,
-                _logger.LogFilePath);
+            if (!_exitRequested)
+            {
+                FriendlyErrorDialog.Show(
+                    this,
+                    failure,
+                    technicalDetails,
+                    _logger.LogFilePath);
+            }
 
             return new QueueItemOutcome(DownloadQueueState.Failed, "Download failed");
         }
@@ -2846,7 +2859,54 @@ internal sealed class MainForm : Form
             return;
         }
 
-        // Kill playlist preparation synchronously before the form exits.
+        if (e.CloseReason == CloseReason.UserClosing)
+        {
+            if (_exitPromptOpen || (_exitRequested && _queueWorkerRunning))
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (!_exitRequested &&
+                ExitConfirmation.GetMessage(_queueWorkerRunning, _downloadQueue.PendingCount) is { } warning)
+            {
+                _exitPromptOpen = true;
+                DialogResult choice;
+                try
+                {
+                    choice = MessageBox.Show(this, warning, "Close Media M8?",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                }
+                finally
+                {
+                    _exitPromptOpen = false;
+                }
+
+                if (choice != DialogResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+
+                _exitRequested = true;
+                if (_queueWorkerRunning)
+                {
+                    // Keep the message loop alive until the worker has drained
+                    // its process and disposed it. Do not start another item.
+                    e.Cancel = true;
+                    SetUiBusy(true);
+                    _mainMenu.Enabled = false;
+                    _btnPaste.Enabled = false;
+                    _queueWindow?.Close();
+                    StopButton_Click(null, EventArgs.Empty);
+                    _status.Text = "Stopping downloads before closing...";
+                    return;
+                }
+            }
+        }
+
+        // Windows shutdown is not delayed by a user confirmation.
+        _exitRequested = true;
         _itemCancellation?.Cancel();
 
         SaveDownloadPreferences();
