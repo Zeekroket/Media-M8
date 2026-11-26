@@ -16,8 +16,6 @@ internal static class ApplicationUpdater
 {
     private const string LatestReleaseUrl =
         "https://api.github.com/repos/Zeekroket/Media-M8/releases/latest";
-    private const string ReleaseDownloadPrefix =
-        "https://github.com/Zeekroket/Media-M8/releases/download/";
     private static readonly HttpClient Client = CreateClient();
 
     private static HttpClient CreateClient()
@@ -34,49 +32,9 @@ internal static class ApplicationUpdater
         response.EnsureSuccessStatusCode();
         using var release = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync(cancellationToken));
-        var root = release.RootElement;
-        var tag = root.GetProperty("tag_name").GetString() ?? "";
-        if (root.GetProperty("draft").GetBoolean() ||
-            root.GetProperty("prerelease").GetBoolean() ||
-            !Version.TryParse(tag.TrimStart('v', 'V'), out var version) ||
-            version != expectedVersion ||
-            version <= Version.Parse(AppInfo.Version))
-        {
-            throw new InvalidOperationException("The available release has changed. Check for updates again.");
-        }
-
-        var suffix = AppPaths.IsPortable ? "portable.zip" : "setup.exe";
-        var name = $"MediaM8-{version}-win-x64-{suffix}";
-        JsonElement asset = default;
-        foreach (var candidate in root.GetProperty("assets").EnumerateArray())
-        {
-            if (candidate.GetProperty("name").GetString() == name)
-            {
-                asset = candidate;
-                break;
-            }
-        }
-
-        if (asset.ValueKind == JsonValueKind.Undefined ||
-            !asset.TryGetProperty("digest", out var digestElement) ||
-            digestElement.ValueKind != JsonValueKind.String)
-        {
-            throw new InvalidOperationException("A verified update package is not available for this version.");
-        }
-
-        var digest = digestElement.GetString() ?? "";
-        if (!digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) ||
-            !IsSha256(digest[7..]))
-        {
-            throw new InvalidOperationException("The release does not publish a valid SHA-256 checksum.");
-        }
-
-        var url = asset.GetProperty("browser_download_url").GetString() ?? "";
-        if (!url.StartsWith(ReleaseDownloadPrefix, StringComparison.Ordinal) ||
-            !url.EndsWith("/" + name, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("The update download address is unexpected.");
-        }
+        var asset = UpdateAssetSelector.Select(
+            release.RootElement, expectedVersion, Version.Parse(AppInfo.Version), AppPaths.IsPortable);
+        var (name, url, digest, version) = asset;
 
         var directory = Path.Combine(
             Path.GetTempPath(), "MediaM8-update-" + Guid.NewGuid().ToString("N"));
@@ -94,7 +52,7 @@ internal static class ApplicationUpdater
             }
 
             var hash = await HashAsync(download, cancellationToken);
-            if (!hash.Equals(digest[7..], StringComparison.OrdinalIgnoreCase))
+            if (!hash.Equals(digest, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The update checksum did not match. No files have been changed.");
             }
@@ -160,7 +118,7 @@ internal static class ApplicationUpdater
         try
         {
             if (args.Length != 5 || !int.TryParse(args[1], out var pid) ||
-                !IsSha256(args[4]))
+                !UpdateAssetSelector.IsSha256(args[4]))
             {
                 throw new InvalidOperationException("Invalid update request.");
             }
@@ -246,9 +204,6 @@ internal static class ApplicationUpdater
     {
         try { System.IO.Directory.Delete(directory, recursive: true); } catch { }
     }
-
-    private static bool IsSha256(string value) =>
-        value.Length == 64 && value.All(Uri.IsHexDigit);
 
     private static string Hash(string path)
     {

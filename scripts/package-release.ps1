@@ -9,6 +9,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+& (Join-Path $PSScriptRoot 'test.ps1')
+
 $installerArgs = @{
     Version = $Version
     Sign = $Sign

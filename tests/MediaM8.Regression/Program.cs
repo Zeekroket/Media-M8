@@ -1,0 +1,227 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using MediaM8;
+
+var tests = new (string Name, Action Run)[]
+{
+    ("Progress: bytes, speed and ETA", () =>
+    {
+        var p = Progress("download", """{"status":"downloading","downloaded_bytes":250,"total_bytes":1000,"speed":125,"eta":6}""");
+        Equal(DownloadPhase.Downloading, p.Phase);
+        Equal<double?>(25, p.Percentage);
+        Equal<long?>(250, p.DownloadedBytes);
+        Equal<long?>(1000, p.TotalBytes);
+        Equal<double?>(125, p.SpeedBytesPerSecond);
+        Equal<int?>(6, p.EtaSeconds);
+    }),
+    ("Progress: estimated bytes", () => Equal<double?>(50, Progress("download", """{"downloaded_bytes":500,"total_bytes_estimate":1000}""").Percentage)),
+    ("Progress: fragments", () => Equal<double?>(30, Progress("download", """{"fragment_index":3,"fragment_count":10}""").Percentage)),
+    ("Progress: fallback percentage clamped", () => Equal<double?>(100, Progress("download", """{"_percent":120}""").Percentage)),
+    ("Progress: missing totals", () => Equal<double?>(null, Progress("download", """{"status":"downloading","downloaded_bytes":50}""").Percentage)),
+    ("Progress: finished and post-processing", () =>
+    {
+        Equal<double?>(100, Progress("download", """{"status":"finished"}""").Percentage);
+        Equal(DownloadPhase.Processing, Progress("postprocess", """{"status":"started"}""").Phase);
+    }),
+    ("Progress: unrelated or malformed lines", () =>
+    {
+        Equal(false, DownloadProgressParser.TryParse("ordinary log output", out _));
+        Equal(false, DownloadProgressParser.TryParse(DownloadProgressParser.Marker + "download|{broken", out _));
+    }),
+    ("Queue: FIFO and state", () =>
+    {
+        var q = new DownloadQueueModel();
+        var a = q.Enqueue(Request("a"));
+        var b = q.Enqueue(Request("b"));
+        Equal(2, q.PendingCount);
+        Equal(a, q.GetNextPending());
+        q.SetState(a, DownloadQueueState.Downloading);
+        Equal(b, q.GetNextPending());
+        q.SetState(a, DownloadQueueState.Completed, "done");
+        Equal("done", a.StatusDetail);
+        Equal(1, q.PendingCount);
+    }),
+    ("Queue: reorder pending, preserve active", () =>
+    {
+        var q = new DownloadQueueModel();
+        var a = q.Enqueue(Request("a"));
+        var b = q.Enqueue(Request("b"));
+        var c = q.Enqueue(Request("c"));
+        q.SetState(a, DownloadQueueState.Downloading);
+        Equal(false, q.MovePending(a.Id, 1));
+        Equal(false, q.CanMovePending(b.Id, -1));
+        Equal(true, q.MovePending(c.Id, -1));
+        Equal(c, q.GetNextPending());
+        Equal(a, q.Items[0]);
+        Equal(true, q.MovePending(c.Id, 1));
+        Equal(b, q.GetNextPending());
+    }),
+    ("Queue: retry only failed/stopped", () =>
+    {
+        var q = new DownloadQueueModel();
+        var a = q.Enqueue(Request("a"));
+        Equal<DownloadQueueItem?>(null, q.Retry(a.Id));
+        q.SetState(a, DownloadQueueState.Failed);
+        var retry = q.Retry(a.Id) ?? throw new Exception("Missing retry.");
+        Equal(a.Request, retry.Request);
+        Equal(true, retry.Id != a.Id);
+        Equal(DownloadQueueState.Pending, retry.State);
+        Equal(DownloadQueueState.Failed, a.State);
+        q.SetState(retry, DownloadQueueState.Stopped);
+        Equal(true, q.Retry(retry.Id) is not null);
+        q.SetState(a, DownloadQueueState.Completed);
+        Equal<DownloadQueueItem?>(null, q.Retry(a.Id));
+    }),
+    ("Queue: remove, clear and pause", () =>
+    {
+        var q = new DownloadQueueModel();
+        var a = q.Enqueue(Request("a"));
+        var b = q.Enqueue(Request("b"));
+        var c = q.Enqueue(Request("c"));
+        var d = q.Enqueue(Request("d"));
+        q.SetState(a, DownloadQueueState.Completed);
+        q.SetState(b, DownloadQueueState.Downloading);
+        Equal(false, q.RemovePending(b.Id));
+        Equal(true, q.RemovePending(c.Id));
+        Equal(1, q.ClearFinished());
+        Equal(2, q.Items.Count);
+        Equal(d, q.GetNextPending());
+        q.SetPaused(true);
+        Equal(true, q.IsPaused);
+        q.SetPaused(false);
+        Equal(false, q.IsPaused);
+    }),
+    ("Settings: missing and invalid values", () => WithSettings((store, path) =>
+    {
+        Equal<string?>(null, store.Read("Appearance"));
+        File.WriteAllText(path, """{"Appearance":42,"DownloadMode":"Video"}""");
+        Equal<string?>(null, store.Read("Appearance"));
+        Equal("Video", store.Read("DownloadMode"));
+        File.WriteAllText(path, "{broken");
+        Equal<string?>(null, store.Read("DownloadMode"));
+        store.Write(("DownloadMode", "MP3"));
+        Equal("MP3", store.Read("DownloadMode"));
+        File.WriteAllText(path, "[]");
+        Equal<string?>(null, store.Read("DownloadMode"));
+    })),
+    ("Settings: preserve other keys and reopen", () => WithSettings((store, path) =>
+    {
+        File.WriteAllText(path, """{"Appearance":"Dark","FutureKey":{"a":1}}""");
+        store.Write(("DownloadFolder", "fixture-folder"), ("AudioQuality", "320 kbps"));
+        store.Write(("Appearance", "Light"));
+        var reopened = new SettingsStore(path);
+        Equal("Light", reopened.Read("Appearance"));
+        Equal("fixture-folder", reopened.Read("DownloadFolder"));
+        Equal("320 kbps", reopened.Read("AudioQuality"));
+        Equal(1, JsonNode.Parse(File.ReadAllText(path))!["FutureKey"]!["a"]!.GetValue<int>());
+        Equal(1, Directory.GetFiles(Path.GetDirectoryName(path)!).Length);
+    })),
+    ("Update: newer, equal and older versions", () =>
+    {
+        using var d = JsonDocument.Parse(Release());
+        Equal(UpdateAvailability.NewVersionAvailable, UpdateChecker.ParseRelease(d.RootElement, new Version(0, 2, 0)).Availability);
+        Equal(UpdateAvailability.UpToDate, UpdateChecker.ParseRelease(d.RootElement, new Version(0, 2, 1)).Availability);
+        Equal(UpdateAvailability.UpToDate, UpdateChecker.ParseRelease(d.RootElement, new Version(0, 3, 0)).Availability);
+    }),
+    ("Update: invalid release metadata", () =>
+    {
+        using var d = JsonDocument.Parse("""{"tag_name":"not-a-version","html_url":"https://example.invalid"}""");
+        Throws<InvalidOperationException>(() => UpdateChecker.ParseRelease(d.RootElement, new Version(0, 2, 0)));
+    }),
+    ("Update: choose exact distribution and digest", () =>
+    {
+        var p = Select(Release(), true);
+        var i = Select(Release(), false);
+        Equal("MediaM8-0.2.1-win-x64-portable.zip", p.Name);
+        Equal("MediaM8-0.2.1-win-x64-setup.exe", i.Name);
+        Equal(new string('a', 64), p.Sha256);
+        Equal(new string('b', 64), i.Sha256);
+    }),
+    ("Update: reject missing asset or digest", () =>
+    {
+        Throws<InvalidOperationException>(() => Select(Release(portable: false), true));
+        Throws<InvalidOperationException>(() => Select(Release(validDigest: false), true));
+    }),
+    ("Update: reject draft, prerelease, wrong version and foreign URL", () =>
+    {
+        Throws<InvalidOperationException>(() => Select(Release(draft: true), true));
+        Throws<InvalidOperationException>(() => Select(Release(prerelease: true), true));
+        Throws<InvalidOperationException>(() => Select(Release(tag: "v0.2.2"), true));
+        Throws<InvalidOperationException>(() => Select(Release(foreignUrl: true), true));
+    })
+};
+
+var failures = 0;
+foreach (var (name, run) in tests)
+{
+    try
+    {
+        run();
+        Console.WriteLine($"PASS  {name}");
+    }
+    catch (Exception ex)
+    {
+        failures++;
+        Console.Error.WriteLine($"FAIL  {name}: {ex.Message}");
+    }
+}
+
+Console.WriteLine($"{tests.Length - failures}/{tests.Length} regression tests passed.");
+return failures == 0 ? 0 : 1;
+
+static void Equal<T>(T expected, T actual)
+{
+    if (!EqualityComparer<T>.Default.Equals(expected, actual))
+        throw new Exception($"Expected {expected}, got {actual}.");
+}
+
+static void Throws<T>(Action action) where T : Exception
+{
+    try { action(); }
+    catch (T) { return; }
+    throw new Exception($"Expected {typeof(T).Name}.");
+}
+
+static DownloadProgressSnapshot Progress(string kind, string json)
+{
+    if (!DownloadProgressParser.TryParse(DownloadProgressParser.Marker + kind + "|" + json, out var p) || p is null)
+        throw new Exception("Progress was not parsed.");
+    return p;
+}
+
+static DownloadRequest Request(string id) =>
+    new("https://example.invalid/" + id, id, "fixture-folder", false, true, false, true, "Best (VBR 0)", "Best");
+
+static void WithSettings(Action<SettingsStore, string> test)
+{
+    var directory = Path.Combine(Path.GetTempPath(), "MediaM8-regression-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var path = Path.Combine(directory, "settings.json");
+        test(new SettingsStore(path), path);
+    }
+    finally { Directory.Delete(directory, recursive: true); }
+}
+
+static UpdateAsset Select(string json, bool portable)
+{
+    using var d = JsonDocument.Parse(json);
+    return UpdateAssetSelector.Select(d.RootElement, new Version(0, 2, 1), new Version(0, 2, 0), portable);
+}
+
+static string Release(bool portable = true, bool validDigest = true, bool draft = false,
+    bool prerelease = false, string tag = "v0.2.1", bool foreignUrl = false)
+{
+    const string baseUrl = "https://github.com/Zeekroket/Media-M8/releases/download/v0.2.1/";
+    const string portableName = "MediaM8-0.2.1-win-x64-portable.zip";
+    const string setupName = "MediaM8-0.2.1-win-x64-setup.exe";
+    var assets = new List<object>
+    {
+        new { name = setupName, digest = "sha256:" + new string('b', 64), browser_download_url = baseUrl + setupName }
+    };
+    if (portable)
+        assets.Add(new { name = portableName, digest = validDigest ? "sha256:" + new string('a', 64) : null,
+            browser_download_url = (foreignUrl ? "https://example.invalid/" : baseUrl) + portableName });
+    return JsonSerializer.Serialize(new { tag_name = tag, html_url = "https://github.com/Zeekroket/Media-M8/releases/tag/" + tag, draft, prerelease, assets });
+}

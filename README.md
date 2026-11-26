@@ -100,6 +100,14 @@ To build and sign with the configured development code-signing certificate:
 .\scripts\build.ps1 -Sign
 ```
 
+Run the deterministic regression tests (no live downloads or real user settings are used):
+
+```powershell
+.\scripts\test.ps1
+```
+
+Release packaging runs these tests before creating either package and stops if they fail. Manual Windows GUI and update smoke tests remain required.
+
 To package both release assets after building, install [Inno Setup](https://jrsoftware.org/isdl.php) 6.3 or newer (the build helper automatically locates Inno Setup 6, or accepts an explicit `-CompilerPath` to ISCC.exe).
 
 ```powershell

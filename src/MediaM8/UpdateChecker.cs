@@ -55,7 +55,11 @@ internal static class UpdateChecker
             stream,
             cancellationToken: cancellationToken);
 
-        var root = document.RootElement;
+        return ParseRelease(document.RootElement, installedVersion);
+    }
+
+    internal static UpdateCheckResult ParseRelease(JsonElement root, Version installedVersion)
+    {
         var tagName = GetRequiredString(root, "tag_name");
         var releaseUrl = GetRequiredString(root, "html_url");
         var latestVersion = ParseVersion(tagName);

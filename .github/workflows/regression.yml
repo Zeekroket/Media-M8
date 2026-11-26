@@ -1,0 +1,23 @@
+name: Regression tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run regression tests
+        shell: pwsh
+        run: ./scripts/test.ps1
+      - name: Compile application
+        run: dotnet build src/MediaM8/MediaM8.csproj --configuration Release
