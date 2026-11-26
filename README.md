@@ -33,7 +33,7 @@ Media M8 currently includes:
 - Built-in presets for common MP3 and video choices
 - Playlist preparation and sequential playlist downloading
 - Session-only single-worker download queue
-- Queue window with Pending / Downloading / Completed / Failed / Stopped states
+- Queue window with Pending / Downloading / Completed / With skips / Skipped / Failed / Stopped states
 - Remove pending, clear finished, retry failed/stopped items and reorder pending downloads
 - Pause Queue / Resume Queue without interrupting the current download
 - Download archive support to avoid duplicate downloads
