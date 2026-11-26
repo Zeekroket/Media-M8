@@ -24,6 +24,14 @@ internal static class Program
             return;
         }
 
+        if (commandLineArgs.Length > 0 && commandLineArgs[0] == "--apply-installed-update")
+        {
+            ApplicationUpdater.ApplyInstalledUpdate(commandLineArgs);
+            return;
+        }
+
+        ApplicationUpdater.CleanupAbandoned();
+
         using var logger = new SessionLogger(AppPaths.LogsDirectory);
         logger.Write($"Media M8 {AppInfo.Version} session started.");
         logger.Write($"Application path: {AppPaths.ApplicationDirectory}");
