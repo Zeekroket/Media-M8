@@ -258,7 +258,9 @@ internal sealed class QueueWindow : Form
                 };
 
                 row.SubItems.Add(
-                    queueItem.Request.DisplayName);
+                    queueItem.State is DownloadQueueState.Skipped or DownloadQueueState.CompletedWithSkips
+                        ? $"{queueItem.StatusDetail} · {queueItem.Request.DisplayName}"
+                        : queueItem.Request.DisplayName);
 
                 _items.Items.Add(row);
 
@@ -300,6 +302,8 @@ internal sealed class QueueWindow : Form
             _queue.Items.Any(
                 item =>
                     item.State == DownloadQueueState.Completed ||
+                    item.State == DownloadQueueState.CompletedWithSkips ||
+                    item.State == DownloadQueueState.Skipped ||
                     item.State == DownloadQueueState.Failed ||
                     item.State == DownloadQueueState.Stopped);
     }
@@ -394,6 +398,8 @@ internal sealed class QueueWindow : Form
         {
             DownloadQueueState.Downloading => "Downloading",
             DownloadQueueState.Completed => "Completed",
+            DownloadQueueState.CompletedWithSkips => "With skips",
+            DownloadQueueState.Skipped => "Skipped",
             DownloadQueueState.Failed => "Failed",
             DownloadQueueState.Stopped => "Stopped",
             _ => "Pending"
