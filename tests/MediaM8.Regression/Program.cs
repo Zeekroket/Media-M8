@@ -151,6 +151,43 @@ var tests = new (string Name, Action Run)[]
         Equal(2, q.ClearFinished());
         Equal(1, q.Items.Count);
     }),
+    ("Failure: known VK extractor error", () =>
+    {
+        const string log = "[vk] fixture: Downloading MPD manifest\nERROR: 'NoneType' object has no attribute 'split'";
+        var exception = new DownloadFailureException("The download process failed.", log);
+        var failure = FriendlyDownloadFailure.From(exception);
+        Equal("Download tool problem", failure.Title);
+        Equal("Download tool problem.", failure.Status);
+        Equal(true, failure.NextAction.Contains("Update download tools", StringComparison.Ordinal));
+        Equal(log, exception.TechnicalDetails);
+    }),
+    ("Failure: VK traceback evidence", () =>
+    {
+        var exception = new DownloadFailureException("The download process failed.",
+            "File \"C:/fixture/yt_dlp/extractor/vk.py\", line 100\nAttributeError: 'NoneType' object has no attribute 'split'");
+        Equal("Download tool problem", FriendlyDownloadFailure.From(exception).Title);
+    }),
+    ("Failure: unknown exception or unrelated output keeps generic message", () =>
+    {
+        const string error = "ERROR: 'NoneType' object has no attribute 'split'";
+        Equal("Download could not be completed", FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", "[youtube] fixture\n" + error)).Title);
+        Equal("Download could not be completed", FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", "[vk] fixture\nERROR: 'NoneType' object has no attribute 'other'")).Title);
+        Equal("Download could not be completed", FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", "[vk] fixture\nWARNING: " + error)).Title);
+        Equal("Download could not be completed", FriendlyDownloadFailure.From(new InvalidOperationException("[vk] fixture\n" + error)).Title);
+    }),
+    ("Failure: existing private, access, connection and disk messages remain", () =>
+    {
+        foreach (var (details, expected) in new[]
+        {
+            ("ERROR: Private video", "This media is private"),
+            ("ERROR: login required", "Sign-in is required"),
+            ("ERROR: video unavailable", "This media is not available"),
+            ("ERROR: Unsupported URL", "This link is not supported"),
+            ("ERROR: Connection refused", "Connection problem"),
+            ("ERROR: No space left on device", "Not enough free space")
+        })
+            Equal(expected, FriendlyDownloadFailure.From(new DownloadFailureException("Failed.", details)).Title);
+    }),
     ("Settings: missing and invalid values", () => WithSettings((store, path) =>
     {
         Equal<string?>(null, store.Read("Appearance"));

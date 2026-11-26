@@ -130,11 +130,42 @@ internal sealed record FriendlyDownloadFailure(
                 "Not enough free space.");
         }
 
+        // Match the actual yt-dlp error line, not arbitrary titles or warnings.
+        // This specific Python exception is a known extractor failure pattern.
+        // Require VK evidence before attributing it to that extractor.
+        if (exception is DownloadFailureException &&
+            IsKnownVkExtractorFailure(technicalDetails))
+        {
+            return new FriendlyDownloadFailure(
+                "Download tool problem",
+                "The download tool could not process this VK link. The website or download tool may have changed.",
+                "Try Tools → Update download tools, then try again later.",
+                "Download tool problem.");
+        }
+
         return new FriendlyDownloadFailure(
             "Download could not be completed",
             "Media M8 could not finish this download.",
             "Check the link and your internet connection, then try again.",
             "Download could not be completed.");
+    }
+
+    private static bool IsKnownVkExtractorFailure(string details)
+    {
+        var lines = details.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim()).ToArray();
+
+        var hasVkContext = lines.Any(line =>
+            line.StartsWith("[vk]", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("[vk:video]", StringComparison.OrdinalIgnoreCase) ||
+            (line.StartsWith("File ", StringComparison.Ordinal) &&
+             line.Replace('\\', '/').Contains("/extractor/vk.py", StringComparison.OrdinalIgnoreCase)));
+
+        var hasKnownError = lines.Any(line =>
+            line.Equals("ERROR: 'NoneType' object has no attribute 'split'", StringComparison.Ordinal) ||
+            line.Equals("AttributeError: 'NoneType' object has no attribute 'split'", StringComparison.Ordinal));
+
+        return hasVkContext && hasKnownError;
     }
 
     private static bool ContainsAny(string text, params string[] values)
