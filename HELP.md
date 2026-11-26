@@ -131,6 +131,8 @@ If a matching package or its published digest is unavailable, the guided update 
 
 Media M8 shows a plain-language error where possible. If it recognizes a known download-tool problem, try **Tools → Update download tools** and retry later. Some website or extractor problems require a fix in the download tool; updating does not guarantee that the link will work immediately.
 
+Media M8 checks that the Save to folder can be written to before adding a request and checks it again when a queued request starts. If the selected drive is disconnected or the folder becomes unavailable, reconnect it or select another folder. If a queued request fails, reconnect or restore its original folder and use Retry, or add the link again using a different Save to folder. For a full disk, free space or choose another drive. Media M8 does not estimate required space when the final media size is unknown.
+
 Choose **Details...** in the error window if you need the technical information. You can also open the session logs through **Tools → Open logs**.
 
 ## Supported websites
