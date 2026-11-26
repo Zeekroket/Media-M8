@@ -1711,16 +1711,13 @@ internal sealed class MainForm : Form
 
         try
         {
-            Directory.CreateDirectory(folder);
+            DestinationFolder.Validate(folder, createIfMissing: true);
         }
-        catch
+        catch (DestinationFolderException ex)
         {
-            MessageBox.Show(
-                this,
-                $"The output folder could not be created: {folder}",
-                "Error",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            var failure = FriendlyDownloadFailure.From(ex);
+            _logger.Write($"Destination validation failed: {ex}", "ERROR");
+            FriendlyErrorDialog.Show(this, failure, ex.ToString(), _logger.LogFilePath);
             return;
         }
 
@@ -1992,6 +1989,8 @@ internal sealed class MainForm : Form
 
         try
         {
+            // A queued destination may have disappeared or lost write access.
+            DestinationFolder.Validate(request.Folder, createIfMissing: false);
             var plan = await DownloadPlanner.PrepareAsync(
                 runtimeTools.YtDlp,
                 request.Url,
@@ -2013,6 +2012,8 @@ internal sealed class MainForm : Form
             foreach (var item in plan.Items)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (plan.IsPlaylist)
+                    DestinationFolder.Validate(request.Folder, createIfMissing: false);
                 SetPreparingItem(
                     item.Index,
                     item.Total);
@@ -2135,7 +2136,7 @@ internal sealed class MainForm : Form
                     _logger.LogFilePath);
             }
 
-            return new QueueItemOutcome(DownloadQueueState.Failed, "Download failed");
+            return new QueueItemOutcome(DownloadQueueState.Failed, failure.Status.TrimEnd('.'));
         }
         finally
         {
