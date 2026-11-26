@@ -25,6 +25,7 @@ internal static class DownloadPlanner
         SessionLogger logger,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!downloadPlaylist)
         {
             return new DownloadPlan(
@@ -68,25 +69,14 @@ internal static class DownloadPlanner
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = new Process
-        {
-            StartInfo = startInfo
-        };
+        var output = await PlaylistProcessRunner.RunAsync(
+            startInfo, cancellationToken,
+            ex => logger.Write($"Could not stop playlist preparation: {ex.Message}", "ERROR"))
+            .ConfigureAwait(false);
+        var stdout = output.Stdout;
+        var stderr = output.Stderr;
 
-        if (!process.Start())
-        {
-            throw new InvalidOperationException(
-                "Could not start yt-dlp while preparing the playlist.");
-        }
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-
-        await process.WaitForExitAsync(cancellationToken);
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-
-        if (process.ExitCode != 0)
+        if (output.ExitCode != 0)
         {
             if (!string.IsNullOrWhiteSpace(stderr))
             {
@@ -95,7 +85,7 @@ internal static class DownloadPlanner
 
             throw new DownloadFailureException(
                 "The playlist could not be prepared.",
-                $"yt-dlp playlist preparation exited with code {process.ExitCode}." +
+                $"yt-dlp playlist preparation exited with code {output.ExitCode}." +
                 Environment.NewLine +
                 stderr.Trim());
         }
@@ -106,6 +96,7 @@ internal static class DownloadPlanner
                      new[] { "\r\n", "\n" },
                      StringSplitOptions.RemoveEmptyEntries))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             using var document = JsonDocument.Parse(line);
             var root = document.RootElement;
 
@@ -121,6 +112,7 @@ internal static class DownloadPlanner
             rawItems.Add((itemUrl, GetString(root, "title")));
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (rawItems.Count == 0)
         {
             throw new DownloadFailureException(
