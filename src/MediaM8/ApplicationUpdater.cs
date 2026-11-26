@@ -7,10 +7,13 @@ using System.Windows.Forms;
 namespace MediaM8;
 
 internal sealed record PreparedApplicationUpdate(
-    string Directory,
+    UpdateWorkspace Workspace,
     string FilePath,
     string Sha256,
-    Version Version);
+    Version Version)
+{
+    public string Directory => Workspace.Directory;
+}
 
 internal static class ApplicationUpdater
 {
@@ -36,9 +39,8 @@ internal static class ApplicationUpdater
             release.RootElement, expectedVersion, Version.Parse(AppInfo.Version), AppPaths.IsPortable);
         var (name, url, digest, version) = asset;
 
-        var directory = Path.Combine(
-            Path.GetTempPath(), "MediaM8-update-" + Guid.NewGuid().ToString("N"));
-        System.IO.Directory.CreateDirectory(directory);
+        var workspace = UpdateWorkspace.Create(Path.GetTempPath());
+        var directory = workspace.Directory;
         try
         {
             var download = Path.Combine(directory, name);
@@ -59,7 +61,7 @@ internal static class ApplicationUpdater
 
             if (!AppPaths.IsPortable)
             {
-                return new PreparedApplicationUpdate(directory, download, hash, version);
+                return new PreparedApplicationUpdate(workspace, download, hash, version);
             }
 
             // Extract only the executable, never overwrite portable data or extract arbitrary paths.
@@ -77,10 +79,11 @@ internal static class ApplicationUpdater
             }
 
             return new PreparedApplicationUpdate(
-                directory, staged, await HashAsync(staged, cancellationToken), version);
+                workspace, staged, await HashAsync(staged, cancellationToken), version);
         }
         catch
         {
+            workspace.Dispose();
             Cleanup(directory);
             throw;
         }
@@ -88,26 +91,93 @@ internal static class ApplicationUpdater
 
     public static void Launch(PreparedApplicationUpdate update)
     {
-        if (!AppPaths.IsPortable)
-        {
-            using var installer = Process.Start(new ProcessStartInfo(update.FilePath)
-            {
-                UseShellExecute = true
-            }) ?? throw new InvalidOperationException("The installer could not be started.");
-            return;
-        }
-
         var target = Application.ExecutablePath;
         var helper = Path.Combine(update.Directory, "MediaM8-update-helper.exe");
         File.Copy(target, helper);
         var start = new ProcessStartInfo(helper) { UseShellExecute = false };
-        start.ArgumentList.Add("--apply-portable-update");
+        start.ArgumentList.Add(AppPaths.IsPortable ? "--apply-portable-update" : "--apply-installed-update");
         start.ArgumentList.Add(Environment.ProcessId.ToString());
         start.ArgumentList.Add(target);
         start.ArgumentList.Add(update.FilePath);
         start.ArgumentList.Add(update.Sha256);
         using var process = Process.Start(start) ??
-            throw new InvalidOperationException("The portable updater could not be started.");
+            throw new InvalidOperationException("The update helper could not be started.");
+    }
+
+    private static void WaitForParent(int pid)
+    {
+        if (pid <= 0 || pid == Environment.ProcessId)
+            throw new InvalidOperationException("Invalid update process.");
+        try
+        {
+            using var parent = Process.GetProcessById(pid);
+            if (!parent.WaitForExit(60_000))
+                throw new IOException("Media M8 is still open.");
+        }
+        catch (ArgumentException)
+        {
+            // The original application has already exited.
+        }
+    }
+
+    private static UpdateWorkspace OpenHelperWorkspace()
+    {
+        return UpdateWorkspace.Open(Path.GetTempPath(), AppContext.BaseDirectory);
+    }
+
+    private static bool IsWorkspaceFile(UpdateWorkspace workspace, string path) =>
+        string.Equals(Path.GetDirectoryName(path),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace.Directory)),
+            StringComparison.OrdinalIgnoreCase) &&
+        (File.GetAttributes(path) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) == 0;
+
+    public static void ApplyInstalledUpdate(string[] args)
+    {
+        UpdateWorkspace? workspace = null;
+        try
+        {
+            workspace = OpenHelperWorkspace();
+            if (args.Length != 5 || !int.TryParse(args[1], out var pid) ||
+                !UpdateAssetSelector.IsSha256(args[4]))
+                throw new InvalidOperationException("Invalid update request.");
+
+            var installerPath = Path.GetFullPath(args[3]);
+            if (!IsWorkspaceFile(workspace, installerPath) ||
+                !UpdateWorkspace.IsPackageName(Path.GetFileName(installerPath), portable: false))
+                throw new InvalidOperationException("The installer path is invalid.");
+
+            WaitForParent(pid);
+            if (!Hash(installerPath).Equals(args[4], StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The installer checksum did not match.");
+
+            using var installer = Process.Start(new ProcessStartInfo(installerPath)
+            {
+                UseShellExecute = true
+            }) ?? throw new InvalidOperationException("The installer could not be started.");
+            installer.WaitForExit();
+            if (installer.ExitCode != 0)
+            {
+                MessageBox.Show("Setup did not complete. You can reopen Media M8 and try the update again.",
+                    "Update not completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Media M8 could not complete the installer handoff. Reopen Media M8 and try again.\n\n" + ex.Message,
+                "Update failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            FinishWorkspace(workspace);
+        }
+    }
+
+    private static void FinishWorkspace(UpdateWorkspace? workspace)
+    {
+        if (workspace is null) return;
+        workspace.MarkFinished();
+        workspace.Dispose();
+        Cleanup(workspace.Directory);
     }
 
     public static void ApplyPortableUpdate(string[] args)
@@ -115,8 +185,10 @@ internal static class ApplicationUpdater
         string? backup = null;
         string? localStage = null;
         var replaced = false;
+        UpdateWorkspace? workspace = null;
         try
         {
+            workspace = OpenHelperWorkspace();
             if (args.Length != 5 || !int.TryParse(args[1], out var pid) ||
                 !UpdateAssetSelector.IsSha256(args[4]))
             {
@@ -129,23 +201,12 @@ internal static class ApplicationUpdater
             if (!File.Exists(Path.Combine(folder, "portable.flag")) ||
                 !File.Exists(target) ||
                 !Path.GetFileName(staged).Equals("MediaM8.new.exe", StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(Path.GetDirectoryName(staged), AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+                !IsWorkspaceFile(workspace, staged))
             {
                 throw new InvalidOperationException("The portable update paths are invalid.");
             }
 
-            try
-            {
-                using var parent = Process.GetProcessById(pid);
-                if (!parent.WaitForExit(60_000))
-                {
-                    throw new IOException("Media M8 is still open.");
-                }
-            }
-            catch (ArgumentException)
-            {
-                // The original application has already exited.
-            }
+            WaitForParent(pid);
 
             if (!Hash(staged).Equals(args[4], StringComparison.OrdinalIgnoreCase))
             {
@@ -185,9 +246,11 @@ internal static class ApplicationUpdater
                 }
                 catch { /* Preserve the backup for manual recovery. */ }
             }
-            var detail = replaced && !restored
-                ? "\n\nA backup is available at:\n" + backup
-                : "\n\nYour existing application files have been retained or restored.";
+            var detail = backup is not null && File.Exists(backup)
+                ? "\n\nA recovery backup is available at:\n" + backup
+                : restored
+                    ? "\n\nThe original executable has been restored."
+                    : "\n\nCheck the existing executable before retrying. Your tools, logs and settings have not been changed.";
             MessageBox.Show("Media M8 could not apply the portable update.\n\n" + ex.Message + detail,
                 "Update failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -197,13 +260,15 @@ internal static class ApplicationUpdater
             {
                 try { File.Delete(localStage); } catch { }
             }
+            FinishWorkspace(workspace);
         }
     }
 
-    public static void Cleanup(string directory)
-    {
-        try { System.IO.Directory.Delete(directory, recursive: true); } catch { }
-    }
+    public static void Cleanup(string directory) =>
+        UpdateWorkspace.Cleanup(Path.GetTempPath(), directory);
+
+    public static void CleanupAbandoned() =>
+        UpdateWorkspace.CleanupAbandoned(Path.GetTempPath(), DateTime.UtcNow);
 
     private static string Hash(string path)
     {

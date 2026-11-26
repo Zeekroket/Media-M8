@@ -125,6 +125,8 @@ After the download, confirm the update or choose Cancel. Finish or remove queued
 - **Installed:** Media M8 closes and opens the Windows installer. Complete the installation using its normal prompts.
 - **Portable:** Media M8 closes, replaces its executable and restarts. Existing tools, logs, settings and the portable marker are kept. If replacement fails, the updater reports the problem and attempts to restore the original executable.
 
+Both update modes wait for Media M8 to close before applying the verified package. Cancelling the installer lets you reopen the existing application. The update helper removes its temporary files when safe; a helper executable that is still in use is cleaned on a later start. Abandoned marked update workspaces are cleaned after one day. Recovery backups and unrelated files are preserved.
+
 If a matching package or its published digest is unavailable, the guided update cannot continue. You can still choose **Open release page**. Nothing is installed without your confirmation.
 
 ## If a download fails
