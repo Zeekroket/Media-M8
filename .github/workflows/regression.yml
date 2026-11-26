@@ -33,3 +33,10 @@ jobs:
           $version = $project.Project.PropertyGroup.Version
           ./scripts/build.ps1
           ./scripts/package-release.ps1 -Version $version
+      - name: Verify Windows PowerShell 5.1 portable packaging
+        shell: powershell
+        run: |
+          [xml]$project = Get-Content src/MediaM8/MediaM8.csproj -Raw
+          $version = $project.Project.PropertyGroup.Version
+          ./scripts/package.ps1 -Version $version
+          ./scripts/release-preflight.ps1 -Version $version -Stage Packages
