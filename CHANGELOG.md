@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Allow independent activation of the main and queue windows while keeping a single queue window per session.
 - Distinguish archive-only skips and mixed download results from fully completed downloads in the queue and final status.
 
 ## [0.2.0] - 2026-11-26
