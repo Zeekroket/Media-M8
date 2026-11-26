@@ -12,6 +12,7 @@
     <Compile Include="../../src/MediaM8/DownloadProgress.cs" Link="Production/DownloadProgress.cs" />
     <Compile Include="../../src/MediaM8/DownloadQueue.cs" Link="Production/DownloadQueue.cs" />
     <Compile Include="../../src/MediaM8/DownloadFailure.cs" Link="Production/DownloadFailure.cs" />
+    <Compile Include="../../src/MediaM8/PlaylistProcessRunner.cs" Link="Production/PlaylistProcessRunner.cs" />
     <Compile Include="../../src/MediaM8/ArchiveSkipTracker.cs" Link="Production/ArchiveSkipTracker.cs" />
     <Compile Include="../../src/MediaM8/UpdateChecker.cs" Link="Production/UpdateChecker.cs" />
     <Compile Include="../../src/MediaM8/UpdateAssetSelector.cs" Link="Production/UpdateAssetSelector.cs" />
