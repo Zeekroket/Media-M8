@@ -408,6 +408,92 @@ var tests = new (string Name, Action Run)[]
         Equal(1, JsonNode.Parse(File.ReadAllText(path))!["FutureKey"]!["a"]!.GetValue<int>());
         Equal(1, Directory.GetFiles(Path.GetDirectoryName(path)!).Length);
     })),
+    ("Update workspace: cancel cleans only owned artifacts", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var root = Path.GetDirectoryName(path)!;
+            string directory;
+            using (var workspace = UpdateWorkspace.Create(root))
+            {
+                directory = workspace.Directory;
+                File.WriteAllText(Path.Combine(directory, "MediaM8-0.2.1-win-x64-portable.zip"), "fixture");
+                File.WriteAllText(Path.Combine(directory, "MediaM8.new.exe"), "fixture");
+                File.WriteAllText(Path.Combine(directory, "MediaM8-update-helper.exe"), "fixture");
+            }
+            UpdateWorkspace.Cleanup(root, directory);
+            Equal(false, Directory.Exists(directory));
+        });
+    }),
+    ("Update workspace: active leases block cleanup", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var root = Path.GetDirectoryName(path)!;
+            string directory;
+            using (var workspace = UpdateWorkspace.Create(root))
+            {
+                directory = workspace.Directory;
+                using var helper = UpdateWorkspace.Open(root, directory);
+                var asset = Path.Combine(directory, "MediaM8-0.2.1-win-x64-setup.exe");
+                File.WriteAllText(asset, "fixture");
+                workspace.MarkFinished();
+                UpdateWorkspace.Cleanup(root, directory);
+                Equal(true, File.Exists(asset));
+                UpdateWorkspace.CleanupAbandoned(root, DateTime.UtcNow.AddDays(2));
+                Equal(true, File.Exists(asset));
+            }
+            UpdateWorkspace.CleanupAbandoned(root, DateTime.UtcNow);
+            Equal(false, Directory.Exists(directory));
+        });
+    }),
+    ("Update workspace: young handoff preserved, abandoned workspace removed", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var root = Path.GetDirectoryName(path)!;
+            string directory;
+            using (var workspace = UpdateWorkspace.Create(root))
+                directory = workspace.Directory;
+            var now = DateTime.UtcNow;
+            UpdateWorkspace.CleanupAbandoned(root, now);
+            Equal(true, Directory.Exists(directory));
+            UpdateWorkspace.CleanupAbandoned(root, now.AddDays(2));
+            Equal(false, Directory.Exists(directory));
+        });
+    }),
+    ("Update workspace: unrelated directories, unknown files and backups preserved", () =>
+    {
+        WithSettings((_, path) =>
+        {
+            var root = Path.GetDirectoryName(path)!;
+            var unrelated = Path.Combine(root, "MediaM8-update-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(unrelated);
+            var untouched = Path.Combine(unrelated, "MediaM8.new.exe");
+            File.WriteAllText(untouched, "unmarked");
+            string directory;
+            using (var workspace = UpdateWorkspace.Create(root))
+            {
+                directory = workspace.Directory;
+                File.WriteAllText(Path.Combine(directory, "notes.txt"), "keep");
+                File.WriteAllText(Path.Combine(directory, ".MediaM8-backup-fixture.exe"), "backup");
+                File.WriteAllText(Path.Combine(directory, "MediaM8.new.exe"), "owned");
+                workspace.MarkFinished();
+            }
+            UpdateWorkspace.CleanupAbandoned(root, DateTime.UtcNow.AddDays(2));
+            Equal(true, File.Exists(untouched));
+            Equal("keep", File.ReadAllText(Path.Combine(directory, "notes.txt")));
+            Equal("backup", File.ReadAllText(Path.Combine(directory, ".MediaM8-backup-fixture.exe")));
+            Equal(false, File.Exists(Path.Combine(directory, "MediaM8.new.exe")));
+        });
+    }),
+    ("Update workspace: package names must match distribution and version", () =>
+    {
+        Equal(true, UpdateWorkspace.IsPackageName("MediaM8-0.2.1-win-x64-setup.exe", false));
+        Equal(true, UpdateWorkspace.IsPackageName("MediaM8-0.2.1-win-x64-portable.zip", true));
+        Equal(false, UpdateWorkspace.IsPackageName("MediaM8-0.2.1-win-x64-portable.zip", false));
+        Equal(false, UpdateWorkspace.IsPackageName("MediaM8-not-a-version-win-x64-setup.exe", false));
+    }),
     ("Update: newer, equal and older versions", () =>
     {
         using var d = JsonDocument.Parse(Release());
