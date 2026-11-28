@@ -501,6 +501,23 @@ var tests = new (string Name, Action Run)[]
         Equal(UpdateAvailability.UpToDate, UpdateChecker.ParseRelease(d.RootElement, new Version(0, 2, 1)).Availability);
         Equal(UpdateAvailability.UpToDate, UpdateChecker.ParseRelease(d.RootElement, new Version(0, 3, 0)).Availability);
     }),
+    ("Update notification: portable restart argument", () =>
+    {
+        Equal(true, PortableUpdateNotification.ShouldShow([PortableUpdateNotification.StartupArgument], true));
+    }),
+    ("Update notification: normal startup and installed mode", () =>
+    {
+        Equal(false, PortableUpdateNotification.ShouldShow([], true));
+        Equal(false, PortableUpdateNotification.ShouldShow([PortableUpdateNotification.StartupArgument], false));
+    }),
+    ("Update notification: helper, unknown or extra arguments ignored", () =>
+    {
+        Equal(false, PortableUpdateNotification.ShouldShow(["--apply-portable-update"], true));
+        Equal(false, PortableUpdateNotification.ShouldShow(["--apply-installed-update"], true));
+        Equal(false, PortableUpdateNotification.ShouldShow(["--unknown"], true));
+        Equal(false, PortableUpdateNotification.ShouldShow([PortableUpdateNotification.StartupArgument, "--unknown"], true));
+        Equal(false, PortableUpdateNotification.ShouldShow([PortableUpdateNotification.StartupArgument, PortableUpdateNotification.StartupArgument], true));
+    }),
     ("Update: invalid release metadata", () =>
     {
         using var d = JsonDocument.Parse("""{"tag_name":"not-a-version","html_url":"https://example.invalid"}""");

@@ -227,12 +227,11 @@ internal static class ApplicationUpdater
             using var restarted = Process.Start(new ProcessStartInfo(target)
             {
                 UseShellExecute = true,
-                WorkingDirectory = folder
+                WorkingDirectory = folder,
+                Arguments = PortableUpdateNotification.StartupArgument
             }) ?? throw new InvalidOperationException("Media M8 could not restart.");
             replaced = false;
             try { File.Delete(backup); } catch { /* Keep a recoverable backup. */ }
-            MessageBox.Show("The portable update has been applied. Media M8 has been restarted.",
-                "Update complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

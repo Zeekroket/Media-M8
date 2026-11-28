@@ -19,5 +19,6 @@
     <Compile Include="../../src/MediaM8/UpdateChecker.cs" Link="Production/UpdateChecker.cs" />
     <Compile Include="../../src/MediaM8/UpdateAssetSelector.cs" Link="Production/UpdateAssetSelector.cs" />
     <Compile Include="../../src/MediaM8/UpdateWorkspace.cs" Link="Production/UpdateWorkspace.cs" />
+    <Compile Include="../../src/MediaM8/PortableUpdateNotification.cs" Link="Production/PortableUpdateNotification.cs" />
   </ItemGroup>
 </Project>
