@@ -54,7 +54,8 @@ internal static class Program
         };
 
         logger.Write("Entering WinForms message loop.");
-        Application.Run(new MainForm(logger));
+        var showUpdateComplete = PortableUpdateNotification.ShouldShow(commandLineArgs, AppPaths.IsPortable);
+        Application.Run(new MainForm(logger, showUpdateComplete));
         logger.Write("Media M8 session ended.");
     }
 }

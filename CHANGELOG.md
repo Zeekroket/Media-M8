@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Show the portable update completion dialog once, owned by the restarted main window after it becomes visible.
+
 ## [0.3.0]
 
 ### Added

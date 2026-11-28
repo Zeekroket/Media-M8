@@ -93,7 +93,7 @@ internal sealed class MainForm : Form
     private FormWindowState _lastNonMinimizedState = FormWindowState.Normal;
     private string? _completedFolder;
 
-    public MainForm(SessionLogger logger)
+    public MainForm(SessionLogger logger, bool showUpdateComplete = false)
     {
         _logger = logger;
 
@@ -144,6 +144,14 @@ internal sealed class MainForm : Form
         };
         Shown += async (_, _) =>
         {
+            // The restarted application owns its notification; the helper does not show it.
+            if (showUpdateComplete)
+            {
+                showUpdateComplete = false;
+                MessageBox.Show(this, "The portable update has been applied. Media M8 has been restarted.",
+                    "Update complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
             RestoreUpdateCheckCache();
             await EnsureFirstRunSetupAsync();
             if (!IsDisposed && !Disposing)
